@@ -1,0 +1,95 @@
+// 全局样式
+:root {
+  --primary-color: #7c3aed;
+  --primary-gradient: linear-gradient(135deg, #7c3aed 0%, #10b981 100%);
+  --sidebar-bg: #fff;
+  --sidebar-width: 200px;
+  --header-height: 60px;
+  --bg-color: #f5f7fa;
+  --text-color: #333;
+  --text-secondary: #666;
+  --border-color: #ebeef5;
+  --card-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  line-height: 1.6;
+}
+
+// 自定义滚动条
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ccc;
+}
+
+// 卡片样式
+.card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  padding: 20px;
+}
+
+// 渐变按钮
+.btn-gradient {
+  background: var(--primary-gradient);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 24px;
+  cursor: pointer;
+  transition: all 0.3s;
+  
+  &:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+}
+
+// 页面标题
+.page-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--primary-color);
+  margin-bottom: 8px;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+// Element Plus 覆盖
+.el-button--primary {
+  background: var(--primary-gradient) !important;
+  border: none !important;
+}
+
+.el-menu {
+  border-right: none !important;
+}
+
+.el-menu-item.is-active {
+  background: var(--primary-gradient) !important;
+  color: #fff !important;
+  border-radius: 8px;
+}

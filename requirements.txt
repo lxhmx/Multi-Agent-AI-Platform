@@ -1,0 +1,38 @@
+# Web 框架
+Flask>=2.3.0
+
+# Vanna Text2SQL
+vanna>=0.5.0
+
+# 向量数据库
+chromadb>=0.4.0
+
+# 数据库连接
+mysql-connector-python>=8.0.0
+
+# OpenAI 客户端（用于 DeepSeek API）
+openai>=1.0.0
+
+# 数据处理
+pandas>=2.0.0
+numpy>=1.24.0
+
+# 文档处理
+python-docx>=0.8.11
+pdfplumber>=0.9.0
+openpyxl>=3.1.0
+
+# Web UI 框架（可选）
+# Flask UI（推荐）
+# vanna[flask]
+
+# Streamlit UI
+streamlit>=1.28.0
+
+# Vue 组件后端支持
+flask-cors>=4.0.0
+flask-socketio>=5.3.0  # WebSocket 支持（可选）
+
+# 其他依赖
+python-dotenv>=1.0.0
+requests>=2.31.0

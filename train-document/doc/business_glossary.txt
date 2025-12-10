@@ -1,0 +1,36 @@
+# 业务术语表
+
+## 灌区相关术语
+
+### 灌区 (Irrigation Area)
+指通过灌溉工程设施进行农业灌溉的区域。每个灌区有唯一的灌区代码(irr_code)和灌区名称(irr_name)。
+
+### 闸门 (Gate/Sluice)
+用于控制水流的设备，可以开启或关闭以调节水量。在系统中用 stcd 唯一标识。
+
+### 渠道 (Channel)
+输送灌溉用水的人工水道。闸门通常安装在渠道上。
+
+### 设计灌溉面积 (Designed Irrigation Area)
+灌区设计时规划的可灌溉土地面积，字段名：des_irr_area
+
+### 有效灌溉面积 (Effective Irrigation Area)
+实际可以进行有效灌溉的土地面积，字段名：eff_irr_area
+
+## 设备状态说明
+
+### 设备状态 (status)
+- 0: 离线
+- 1: 在线
+
+### 厂家 (factory)
+- 2: PLC协议设备
+- 1: modBus协议设备
+
+## 数据查询建议
+
+当用户询问：
+- "有多少个闸门" → 查询 att_irrd_i_st_base 表，COUNT(*) 统计
+- "某某灌区的闸门" → 使用 irr_name 或 irr_code 过滤
+- "启用的闸门" → 使用 status=1 过滤
+- "某个区域的设备" → 使用 area_name 过滤

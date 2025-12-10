@@ -1,0 +1,326 @@
+openapi: 3.0.3
+info:
+  title: 智能知识库问答平台 API
+  description: |
+    Text2SQL 自助式数据报表开发平台 API 规范
+    
+    ## 功能模块
+    - **知识训练**: 支持文件上传和手动输入训练数据
+    - **数据管理**: 查看、搜索、删除训练数据
+    - **智能问答**: 自然语言查询数据库
+  version: 1.0.0
+  
+servers:
+  - url: http://localhost:5000
+    description: 开发服务器
+
+tags:
+  - name: 训练
+    description: 知识训练相关接口
+  - name: 数据管理
+    description: 训练数据管理接口
+  - name: 问答
+    description: 智能问答接口
+
+paths:
+  /api/upload:
+    post:
+      tags: [训练]
+      summary: 上传训练文件
+      description: |
+        支持上传 .sql, .doc, .docx, .pdf, .xls, .xlsx 格式文件
+        文件按日期存储到 train-sql 或 train-document 目录
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 上传的文件
+                train_type:
+                  type: string
+                  enum: [sql, document]
+                  description: 训练类型，自动根据文件后缀判断
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '400':
+          description: 请求错误
+          
+  /api/train-manual:
+    post:
+      tags: [训练]
+      summary: 手动输入训练数据
+      description: 手动输入 SQL、DDL 或文档内容进行训练
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualTrainRequest'
+      responses:
+        '200':
+          description: 训练成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/training-stats:
+    get:
+      tags: [数据管理]
+      summary: 获取训练数据统计
+      description: 返回各类型训练数据的数量统计
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingStatsResponse'
+
+  /api/training-activity:
+    get:
+      tags: [数据管理]
+      summary: 获取近期训练活跃度
+      description: 返回最近7天的训练数据统计
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 7
+          description: 查询天数
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingActivityResponse'
+
+  /api/training-data:
+    get:
+      tags: [数据管理]
+      summary: 获取训练数据列表
+      description: 分页获取训练数据，支持按类型和关键词筛选
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [all, sql, ddl, documentation]
+        - name: keyword
+          in: query
+          schema:
+            type: string
+          description: 搜索关键词
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingDataListResponse'
+    delete:
+      tags: [数据管理]
+      summary: 删除训练数据
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: string
+                delete_all:
+                  type: boolean
+                type:
+                  type: string
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/query:
+    post:
+      tags: [问答]
+      summary: 智能问答查询
+      description: 根据自然语言问题生成SQL并执行查询
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question:
+                  type: string
+                  description: 用户问题
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+
+components:
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          
+    UploadResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        file_name:
+          type: string
+        file_path:
+          type: string
+        train_type:
+          type: string
+          
+    ManualTrainRequest:
+      type: object
+      required: [type, content]
+      properties:
+        type:
+          type: string
+          enum: [sql, ddl, documentation]
+          description: 训练类型
+        content:
+          type: string
+          description: 训练内容
+        title:
+          type: string
+          description: 标题（可选）
+        keywords:
+          type: string
+          description: 关键词，逗号分隔
+        tags:
+          type: string
+          description: 业务标签，逗号分隔
+          
+    TrainingStatsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        stats:
+          type: object
+          properties:
+            total:
+              type: integer
+            sql_count:
+              type: integer
+            ddl_count:
+              type: integer
+            doc_count:
+              type: integer
+              
+    TrainingActivityResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              count:
+                type: integer
+                
+    TrainingDataListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrainingDataItem'
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+            page_size:
+              type: integer
+            total:
+              type: integer
+            total_pages:
+              type: integer
+              
+    TrainingDataItem:
+      type: object
+      properties:
+        id:
+          type: string
+        training_data_type:
+          type: string
+        question:
+          type: string
+        content:
+          type: string
+        created_at:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+            
+    QueryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        question:
+          type: string
+        answer:
+          type: string
+        sql:
+          type: string
+        table:
+          type: object
+        chart:
+          type: object
+        row_count:
+          type: integer

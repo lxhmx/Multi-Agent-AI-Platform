@@ -1,0 +1,549 @@
+"""
+数据管理 API
+提供训练文件的统计、列表、删除等功能
+所有数据管理相关的接口都在这里
+"""
+import sys
+import hashlib
+from datetime import datetime, date, timedelta
+from pathlib import Path
+from typing import Optional, List, Dict, Any
+
+from flask import Flask, request, jsonify
+
+# 添加项目根目录到路径
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from config import DB_CONFIG
+import mysql.connector
+from mysql.connector import Error
+
+
+def get_db_connection():
+    """获取数据库连接"""
+    try:
+        conn = mysql.connector.connect(
+            host=DB_CONFIG['host'],
+            port=DB_CONFIG.get('port', 3306),
+            user=DB_CONFIG['user'],
+            password=DB_CONFIG['password'],
+            database=DB_CONFIG['database']
+        )
+        return conn
+    except Error as e:
+        print(f"[DataManage] 连接数据库失败: {e}")
+        return None
+
+
+def init_table():
+    """初始化训练文件记录表"""
+    conn = get_db_connection()
+    if not conn:
+        return False
+    
+    try:
+        cursor = conn.cursor()
+        
+        create_sql = """
+        CREATE TABLE IF NOT EXISTS training_files (
+            id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+            file_name VARCHAR(255) NOT NULL COMMENT '文件名',
+            file_path VARCHAR(500) NOT NULL COMMENT '文件完整路径',
+            file_type VARCHAR(20) NOT NULL COMMENT '文件类型',
+            train_type VARCHAR(20) NOT NULL COMMENT '训练类型：sql或document',
+            file_size BIGINT DEFAULT 0 COMMENT '文件大小(字节)',
+            file_hash VARCHAR(64) COMMENT '文件MD5哈希值',
+            train_status VARCHAR(20) DEFAULT 'pending' COMMENT '训练状态',
+            train_result TEXT COMMENT '训练结果或错误信息',
+            train_count INT DEFAULT 0 COMMENT '训练生成的知识条目数',
+            upload_date DATE NOT NULL COMMENT '上传日期',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+            
+            INDEX idx_file_type (file_type),
+            INDEX idx_train_type (train_type),
+            INDEX idx_train_status (train_status),
+            INDEX idx_upload_date (upload_date),
+            INDEX idx_file_hash (file_hash)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='训练文件记录表'
+        """
+        cursor.execute(create_sql)
+        conn.commit()
+        print("[DataManage] 训练文件记录表初始化成功")
+        return True
+        
+    except Error as e:
+        print(f"[DataManage] 初始化表失败: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def calculate_file_hash(file_path: Path) -> str:
+    """计算文件MD5哈希值"""
+    hash_md5 = hashlib.md5()
+    try:
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        return hash_md5.hexdigest()
+    except Exception:
+        return ""
+
+
+def insert_training_file(
+    file_name: str,
+    file_path: str,
+    file_type: str,
+    train_type: str,
+    file_size: int = 0,
+    file_hash: str = None,
+    upload_date: date = None
+) -> Optional[int]:
+    """插入训练文件记录"""
+    conn = get_db_connection()
+    if not conn:
+        return None
+    
+    try:
+        cursor = conn.cursor()
+        
+        if upload_date is None:
+            upload_date = date.today()
+        
+        sql = """
+        INSERT INTO training_files 
+        (file_name, file_path, file_type, train_type, file_size, file_hash, upload_date)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(sql, (
+            file_name, file_path, file_type, train_type, file_size, file_hash, upload_date
+        ))
+        conn.commit()
+        
+        return cursor.lastrowid
+        
+    except Error as e:
+        print(f"[DataManage] 插入记录失败: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_training_status(
+    file_id: int,
+    train_status: str,
+    train_result: str = None,
+    train_count: int = None
+) -> bool:
+    """
+    更新训练状态
+    
+    Args:
+        file_id: 文件记录ID
+        train_status: 训练状态 (pending/training/success/failed)
+        train_result: 训练结果描述
+        train_count: 训练生成的知识条目数
+    """
+    conn = get_db_connection()
+    if not conn:
+        return False
+    
+    try:
+        cursor = conn.cursor()
+        
+        updates = ["train_status = %s"]
+        params = [train_status]
+        
+        if train_result is not None:
+            updates.append("train_result = %s")
+            params.append(train_result)
+        
+        if train_count is not None:
+            updates.append("train_count = %s")
+            params.append(train_count)
+        
+        params.append(file_id)
+        
+        sql = f"UPDATE training_files SET {', '.join(updates)} WHERE id = %s"
+        cursor.execute(sql, params)
+        conn.commit()
+        
+        return cursor.rowcount > 0
+        
+    except Error as e:
+        print(f"[DataManage] 更新状态失败: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_data_manage_functions():
+    """
+    获取数据管理函数（用于延迟导入，避免循环依赖）
+    
+    Returns:
+        dict: 包含 insert_training_file, update_training_status, calculate_file_hash 函数
+    """
+    return {
+        'insert_training_file': insert_training_file,
+        'update_training_status': update_training_status,
+        'calculate_file_hash': calculate_file_hash
+    }
+
+
+# ==================== API 接口 ====================
+
+def get_training_stats_api():
+    """
+    获取训练数据统计
+    GET /api/data-manage/stats
+    """
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"success": False, "message": "数据库连接失败"}), 500
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        sql = """
+        SELECT 
+            COUNT(*) as total_files,
+            SUM(CASE WHEN train_type = 'sql' THEN 1 ELSE 0 END) as sql_count,
+            SUM(CASE WHEN train_type = 'document' THEN 1 ELSE 0 END) as doc_count,
+            SUM(CASE WHEN train_status = 'success' THEN 1 ELSE 0 END) as success_count,
+            SUM(CASE WHEN train_status = 'failed' THEN 1 ELSE 0 END) as failed_count,
+            SUM(CASE WHEN train_status = 'pending' THEN 1 ELSE 0 END) as pending_count,
+            COALESCE(SUM(train_count), 0) as total_train_items,
+            COALESCE(SUM(file_size), 0) as total_file_size
+        FROM training_files
+        """
+        cursor.execute(sql)
+        result = cursor.fetchone()
+        
+        # 按文件类型统计
+        cursor.execute("""
+            SELECT file_type, COUNT(*) as count 
+            FROM training_files 
+            GROUP BY file_type
+        """)
+        type_stats = {row['file_type']: row['count'] for row in cursor.fetchall()}
+        
+        return jsonify({
+            "success": True,
+            "stats": {
+                "total_files": result['total_files'] or 0,
+                "sql_count": int(result['sql_count'] or 0),
+                "doc_count": int(result['doc_count'] or 0),
+                "success_count": int(result['success_count'] or 0),
+                "failed_count": int(result['failed_count'] or 0),
+                "pending_count": int(result['pending_count'] or 0),
+                "total_train_items": int(result['total_train_items'] or 0),
+                "total_file_size": int(result['total_file_size'] or 0),
+                "by_type": type_stats
+            }
+        })
+        
+    except Error as e:
+        print(f"[DataManage] 获取统计失败: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_training_activity_api():
+    """
+    获取训练活跃度（近N天每天的上传数量）
+    GET /api/data-manage/activity?days=7
+    """
+    days = request.args.get('days', 7, type=int)
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"success": False, "message": "数据库连接失败"}), 500
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        sql = """
+        SELECT 
+            upload_date,
+            COUNT(*) as file_count,
+            COALESCE(SUM(train_count), 0) as train_items
+        FROM training_files
+        WHERE upload_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+        GROUP BY upload_date
+        ORDER BY upload_date ASC
+        """
+        cursor.execute(sql, (days,))
+        results = cursor.fetchall()
+        
+        # 转换日期格式
+        data = []
+        for row in results:
+            data.append({
+                "date": row['upload_date'].isoformat() if row['upload_date'] else None,
+                "count": row['file_count'],
+                "train_items": int(row['train_items'])
+            })
+        
+        return jsonify({
+            "success": True,
+            "data": data
+        })
+        
+    except Error as e:
+        print(f"[DataManage] 获取活跃度失败: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_training_files_api():
+    """
+    获取训练文件列表
+    GET /api/data-manage/files?page=1&page_size=20&train_type=sql&keyword=xxx
+    """
+    page = request.args.get('page', 1, type=int)
+    page_size = request.args.get('page_size', 20, type=int)
+    train_type = request.args.get('train_type', '')
+    file_type = request.args.get('file_type', '')
+    train_status = request.args.get('train_status', '')
+    keyword = request.args.get('keyword', '')
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"success": False, "message": "数据库连接失败"}), 500
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # 构建查询条件
+        conditions = []
+        params = []
+        
+        if train_type:
+            conditions.append("train_type = %s")
+            params.append(train_type)
+        
+        if file_type:
+            conditions.append("file_type = %s")
+            params.append(file_type)
+        
+        if train_status:
+            conditions.append("train_status = %s")
+            params.append(train_status)
+        
+        if keyword:
+            conditions.append("(file_name LIKE %s OR file_path LIKE %s)")
+            params.extend([f"%{keyword}%", f"%{keyword}%"])
+        
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+        
+        # 查询总数
+        count_sql = f"SELECT COUNT(*) as total FROM training_files WHERE {where_clause}"
+        cursor.execute(count_sql, params)
+        total = cursor.fetchone()['total']
+        
+        # 查询数据
+        offset = (page - 1) * page_size
+        data_sql = f"""
+        SELECT * FROM training_files 
+        WHERE {where_clause}
+        ORDER BY created_at DESC
+        LIMIT %s OFFSET %s
+        """
+        cursor.execute(data_sql, params + [page_size, offset])
+        data = cursor.fetchall()
+        
+        # 转换日期格式
+        for row in data:
+            if row.get('upload_date'):
+                row['upload_date'] = row['upload_date'].isoformat()
+            if row.get('created_at'):
+                row['created_at'] = row['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+            if row.get('updated_at'):
+                row['updated_at'] = row['updated_at'].strftime('%Y-%m-%d %H:%M:%S')
+        
+        return jsonify({
+            "success": True,
+            "data": data,
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+                "total_pages": (total + page_size - 1) // page_size
+            }
+        })
+        
+    except Error as e:
+        print(f"[DataManage] 查询失败: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_training_file_api():
+    """
+    删除训练文件记录（完整删除流程）
+    DELETE /api/data-manage/files
+    Body: { "ids": [1, 2, 3] } 或 { "delete_all": true }
+    
+    删除流程：
+    1. 从向量数据库删除训练数据（使用 file_hash 匹配）
+    2. 删除本地文件
+    3. 删除数据库记录
+    """
+    import os
+    
+    data = request.get_json() or {}
+    ids = data.get('ids', [])
+    delete_all = data.get('delete_all', False)
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"success": False, "message": "数据库连接失败"}), 500
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # 1. 先查询要删除的记录，获取文件路径和文件哈希
+        if delete_all:
+            cursor.execute("SELECT id, file_name, file_path, file_hash, train_type FROM training_files")
+        elif ids:
+            placeholders = ','.join(['%s'] * len(ids))
+            cursor.execute(f"SELECT id, file_name, file_path, file_hash, train_type FROM training_files WHERE id IN ({placeholders})", ids)
+        else:
+            return jsonify({"success": False, "message": "请指定要删除的记录"}), 400
+        
+        records = cursor.fetchall()
+        
+        if not records:
+            return jsonify({"success": False, "message": "未找到要删除的记录"}), 404
+        
+        # 统计
+        deleted_db_count = 0
+        deleted_file_count = 0
+        deleted_vector_count = 0
+        errors = []
+        
+        # 2. 删除向量数据库中的数据（使用 file_hash 匹配）
+        try:
+            from api.train_sql_api import get_vanna_instance
+            vn = get_vanna_instance()
+            
+            # 获取所有训练数据（只查询一次）
+            training_data = vn.get_training_data()
+            if hasattr(training_data, 'to_dict'):
+                all_data = training_data.to_dict('records')
+            elif isinstance(training_data, list):
+                all_data = training_data
+            else:
+                all_data = []
+            
+            for record in records:
+                file_hash = record.get('file_hash')
+                file_name = record.get('file_name')
+                train_type = record.get('train_type')
+                
+                if file_hash and file_name:
+                    # 构建 file_id（与训练时一致）
+                    prefix = 'sql' if train_type == 'sql' else 'doc'
+                    file_id = f"{prefix}_{file_name}_{file_hash[:8]}"
+                    
+                    # 查找并删除匹配的向量数据
+                    for item in all_data:
+                        content = item.get('content', '') or ''
+                        if file_id in str(content):
+                            item_id = item.get('id')
+                            if item_id:
+                                try:
+                                    vn.remove_training_data(id=item_id)
+                                    deleted_vector_count += 1
+                                    print(f"[DataManage] 删除向量数据: {item_id} (file_id={file_id})")
+                                except Exception as ve:
+                                    errors.append(f"删除向量 {item_id} 失败: {str(ve)}")
+                        
+        except Exception as e:
+            errors.append(f"获取 Vanna 实例失败: {str(e)}")
+        
+        # 3. 删除本地文件
+        for record in records:
+            file_path = record.get('file_path')
+            if file_path and os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                    deleted_file_count += 1
+                    print(f"[DataManage] 删除文件: {file_path}")
+                except Exception as fe:
+                    errors.append(f"删除文件 {file_path} 失败: {str(fe)}")
+        
+        # 4. 删除数据库记录
+        cursor_del = conn.cursor()
+        if delete_all:
+            cursor_del.execute("DELETE FROM training_files")
+        else:
+            placeholders = ','.join(['%s'] * len(ids))
+            cursor_del.execute(f"DELETE FROM training_files WHERE id IN ({placeholders})", ids)
+        
+        conn.commit()
+        deleted_db_count = cursor_del.rowcount
+        cursor_del.close()
+        
+        return jsonify({
+            "success": True,
+            "message": f"删除完成：数据库 {deleted_db_count} 条，文件 {deleted_file_count} 个，向量 {deleted_vector_count} 条",
+            "deleted_count": deleted_db_count,
+            "details": {
+                "database": deleted_db_count,
+                "files": deleted_file_count,
+                "vectors": deleted_vector_count
+            },
+            "errors": errors if errors else None
+        })
+        
+    except Error as e:
+        print(f"[DataManage] 删除失败: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def register_routes(app):
+    """注册路由到 Flask app"""
+    # 统计接口
+    app.route('/api/data-manage/stats', methods=['GET'])(get_training_stats_api)
+    # 活跃度接口
+    app.route('/api/data-manage/activity', methods=['GET'])(get_training_activity_api)
+    # 文件列表接口
+    app.route('/api/data-manage/files', methods=['GET'])(get_training_files_api)
+    # 删除接口
+    app.route('/api/data-manage/files', methods=['DELETE'])(delete_training_file_api)
+
+
+# 独立运行时的代码
+if __name__ == '__main__':
+    # 初始化表
+    init_table()
+    
+    app = Flask(__name__)
+    register_routes(app)
+    
+    print("=" * 60)
+    print("数据管理 API 服务")
+    print("=" * 60)
+    print("\n可用接口:")
+    print("  GET  /api/data-manage/stats     - 获取统计数据")
+    print("  GET  /api/data-manage/activity  - 获取活跃度")
+    print("  GET  /api/data-manage/files     - 获取文件列表")
+    print("  DELETE /api/data-manage/files   - 删除文件记录")
+    print("\n" + "=" * 60)
+    app.run(host='0.0.0.0', port=5004, debug=True)
