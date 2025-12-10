@@ -9,7 +9,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from pathlib import Path
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 import mysql.connector
 import pandas as pd
 
@@ -18,7 +18,9 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from common.vanna_instance import get_vanna_instance
+from common.langchain_llm import stream_chat_response
 from common.conn_mysql import get_mysql_connection
+from common.langchain_agent import run_agent_stream
 
 
 def query():
@@ -365,9 +367,237 @@ def generate_simple_chart(df, numeric_cols: list) -> dict:
     }
 
 
+def query_stream():
+    """
+    流式查询接口 - 使用 SSE 协议逐字返回回答
+    
+    请求: POST /api/query-stream
+    Body: {"question": "查询所有闸门设备"}
+    
+    响应: SSE 事件流
+    - event: sql       -> SQL 语句
+    - event: answer    -> 逐字返回的回答内容
+    - event: table     -> 表格数据 (JSON)
+    - event: done      -> 完成信号
+    - event: error     -> 错误信息
+    """
+    import json
+    
+    # 必须在生成器外部获取请求数据，因为生成器延迟执行时请求上下文可能已失效
+    data = request.get_json()
+    
+    if not data or 'question' not in data:
+        def error_gen():
+            yield f"event: error\ndata: {json.dumps({'message': '请提供 question 参数'}, ensure_ascii=False)}\n\n"
+        return Response(error_gen(), mimetype='text/event-stream')
+    
+    question = data['question'].strip()
+    # 获取会话 ID（用于记忆功能，前端传入）
+    session_id = data.get('session_id', None)
+    
+    if not question:
+        def error_gen():
+            yield f"event: error\ndata: {json.dumps({'message': '问题不能为空'}, ensure_ascii=False)}\n\n"
+        return Response(error_gen(), mimetype='text/event-stream')
+    
+    def generate():
+        try:
+            vn = get_vanna_instance()
+            
+            print(f"\n[Query Stream] 用户问题: {question}")
+            
+            # 1. 生成 SQL
+            sql = vn.generate_sql(question)
+            print(f"[Query Stream] 生成的 SQL: {sql}")
+            
+            if not sql or not sql.strip():
+                yield f"event: error\ndata: {json.dumps({'message': '抱歉，我无法理解您的问题。请尝试换一种方式描述。'}, ensure_ascii=False)}\n\n"
+                return
+            
+            sql_upper = sql.strip().upper()
+            if not sql_upper.startswith('SELECT'):
+                yield f"event: error\ndata: {json.dumps({'message': '抱歉，我无法理解您的问题。请尝试换一种方式描述。'}, ensure_ascii=False)}\n\n"
+                return
+            
+            # 2. 执行 SQL 查询
+            try:
+                conn = get_mysql_connection()
+                cursor = conn.cursor(dictionary=True)
+                cursor.execute(sql)
+                results = cursor.fetchall()
+                cursor.close()
+                conn.close()
+                
+                print(f"[Query Stream] 查询成功，返回 {len(results)} 条记录")
+                
+                # 处理结果中的特殊类型
+                def convert_value(obj):
+                    if isinstance(obj, (datetime, date)):
+                        return obj.isoformat()
+                    elif isinstance(obj, Decimal):
+                        return float(obj)
+                    elif isinstance(obj, bytes):
+                        return obj.decode('utf-8', errors='ignore')
+                    return obj
+                
+                converted_results = []
+                for row in results:
+                    converted_row = {k: convert_value(v) for k, v in row.items()}
+                    converted_results.append(converted_row)
+                
+                df = pd.DataFrame(converted_results) if converted_results else pd.DataFrame()
+                
+                # 3. 生成表格数据
+                table_data = generate_table_data(df)
+                
+                # 4. 流式生成人性化回答（使用 LangChain）
+                if df.empty:
+                    yield f"event: answer\ndata: 根据您的查询条件，暂未找到相关数据。您可以尝试调整查询条件后再试。\n\n"
+                else:
+                    # 构建提示词
+                    row_count = len(df)
+                    col_count = len(df.columns)
+                    
+                    if row_count <= 10:
+                        data_preview = df.to_markdown(index=False)
+                    else:
+                        data_preview = df.head(10).to_markdown(index=False)
+                        data_preview += f"\n\n... 共 {row_count} 条记录"
+                    
+                    # 系统提示词
+                    system_prompt = (
+                        "你是一个友好的数据分析助手。用户提出了一个数据查询问题，系统已经执行了SQL查询并获得了结果。"
+                        "请根据查询结果，用自然、易懂的语言回答用户的问题。"
+                        "要求：\n"
+                        "1. 直接回答用户的问题，不要提及SQL或技术细节\n"
+                        "2. 如果数据量大，给出关键统计信息（如总数、最大值、最小值等）\n"
+                        "3. 如果有明显的数据特征或趋势，简要说明\n"
+                        "4. 回答要简洁明了，控制在200字以内\n"
+                        "5. 使用中文回答"
+                    )
+                    
+                    # 用户提示词
+                    user_prompt = (
+                        f"用户问题：{question}\n\n"
+                        f"查询结果（共{row_count}条记录，{col_count}个字段）：\n{data_preview}"
+                    )
+                    
+                    # 使用 LangChain 流式输出回答（传入 session_id 启用记忆）
+                    for chunk in stream_chat_response(system_prompt, user_prompt, session_id):
+                        yield f"event: answer\ndata: {chunk}\n\n"
+                
+                # 5. 发送表格数据（处理特殊值并使用 Base64 编码）
+                import base64
+                import math
+                
+                def sanitize_value(v):
+                    """处理 JSON 不支持的特殊值"""
+                    if v is None:
+                        return None
+                    if isinstance(v, float):
+                        if math.isnan(v) or math.isinf(v):
+                            return None
+                    return v
+                
+                def sanitize_dict(d):
+                    """递归处理字典中的特殊值"""
+                    if isinstance(d, dict):
+                        return {k: sanitize_dict(v) for k, v in d.items()}
+                    elif isinstance(d, list):
+                        return [sanitize_dict(item) for item in d]
+                    else:
+                        return sanitize_value(d)
+                
+                sanitized_table = sanitize_dict(table_data)
+                table_json = json.dumps(sanitized_table, ensure_ascii=False)
+                table_b64 = base64.b64encode(table_json.encode('utf-8')).decode('ascii')
+                yield f"event: table\ndata: {table_b64}\n\n"
+                
+                # 6. 发送完成信号
+                done_json = json.dumps({'row_count': len(converted_results)})
+                yield f"event: done\ndata: {done_json}\n\n"
+                
+            except mysql.connector.Error as db_error:
+                print(f"[Query Stream] 数据库错误: {db_error}")
+                yield f"event: error\ndata: {json.dumps({'message': f'查询执行时遇到问题：{str(db_error)}'}, ensure_ascii=False)}\n\n"
+                
+        except Exception as e:
+            print(f"[Query Stream] 异常: {traceback.format_exc()}")
+            yield f"event: error\ndata: {json.dumps({'message': '处理您的问题时出现错误，请稍后重试。'}, ensure_ascii=False)}\n\n"
+    
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no'
+        }
+    )
+
+
+def query_agent():
+    """
+    Agent 模式查询接口 - 使用 LangChain Agent 自动决定是否调用数据库查询工具
+    
+    请求: POST /api/query-agent
+    Body: {"question": "查询所有闸门设备", "session_id": "xxx"}
+    
+    响应: SSE 事件流
+    - event: answer    -> 逐字返回的回答内容
+    - event: done      -> 完成信号
+    - event: error     -> 错误信息
+    """
+    import json
+    
+    data = request.get_json()
+    
+    if not data or 'question' not in data:
+        def error_gen():
+            yield f"event: error\ndata: {json.dumps({'message': '请提供 question 参数'}, ensure_ascii=False)}\n\n"
+        return Response(error_gen(), mimetype='text/event-stream')
+    
+    question = data['question'].strip()
+    session_id = data.get('session_id', None)
+    
+    if not question:
+        def error_gen():
+            yield f"event: error\ndata: {json.dumps({'message': '问题不能为空'}, ensure_ascii=False)}\n\n"
+        return Response(error_gen(), mimetype='text/event-stream')
+    
+    def generate():
+        try:
+            print(f"\n[Agent] 用户问题: {question}")
+            print(f"[Agent] Session ID: {session_id}")
+            
+            # 使用 Agent 流式处理
+            for chunk in run_agent_stream(question, session_id):
+                yield f"event: answer\ndata: {chunk}\n\n"
+            
+            # 发送完成信号
+            yield f"event: done\ndata: {json.dumps({'success': True})}\n\n"
+            
+        except Exception as e:
+            import traceback
+            print(f"[Agent] 异常: {traceback.format_exc()}")
+            yield f"event: error\ndata: {json.dumps({'message': '处理您的问题时出现错误，请稍后重试。'}, ensure_ascii=False)}\n\n"
+    
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no'
+        }
+    )
+
+
 def register_routes(app):
     """注册路由到 Flask app"""
     app.route('/api/query', methods=['POST'])(query)
+    app.route('/api/query-stream', methods=['POST'])(query_stream)
+    app.route('/api/query-agent', methods=['POST'])(query_agent)  # 新增 Agent 模式
 
 
 # 独立运行时的代码

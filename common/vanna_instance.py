@@ -54,6 +54,17 @@ class DeepSeekChat(VannaBase):
             messages=prompt,
         )
         return chat_response.choices[0].message.content
+    
+    def submit_prompt_stream(self, prompt, **kwargs):
+        """流式输出版本的 submit_prompt，返回生成器"""
+        chat_response = self.client.chat.completions.create(
+            model=self.model,
+            messages=prompt,
+            stream=True,
+        )
+        for chunk in chat_response:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
 
 
 class MyVanna(ChromaDB_VectorStore, DeepSeekChat):

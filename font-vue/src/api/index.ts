@@ -127,9 +127,180 @@ export const deleteTrainingFiles = (data: {
   return api.delete('/data-manage/files', { data })
 }
 
-// 智能问答
+// 智能问答（普通模式）
 export const queryQuestion = (question: string): Promise<QueryResult> => {
   return api.post('/query', { question })
+}
+
+// 智能问答（SSE 流式模式）
+export interface StreamCallbacks {
+  onAnswer?: (chunk: string) => void
+  onTable?: (table: QueryResult['table']) => void
+  onDone?: (data: { row_count: number }) => void
+  onError?: (message: string) => void
+}
+
+export const queryQuestionStream = async (
+  question: string,
+  callbacks: StreamCallbacks,
+  sessionId?: string  // 可选的会话 ID，用于启用记忆功能
+): Promise<void> => {
+  const response = await fetch('/api/query-stream', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ question, session_id: sessionId }),
+  })
+
+  if (!response.ok) {
+    callbacks.onError?.('请求失败')
+    return
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) {
+    callbacks.onError?.('无法读取响应流')
+    return
+  }
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let currentEvent = ''
+  let currentData = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    
+    // 解析 SSE 事件（按双换行分割事件块）
+    const parts = buffer.split('\n\n')
+    buffer = parts.pop() || ''
+
+    for (const part of parts) {
+      const lines = part.split('\n')
+      currentEvent = ''
+      currentData = ''
+      
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim()
+        } else if (line.startsWith('data: ')) {
+          currentData = line.slice(6)
+        }
+      }
+      
+      // 处理完整的事件
+      if (currentEvent && currentData !== '') {
+        if (currentEvent === 'answer') {
+          callbacks.onAnswer?.(currentData)
+        } else if (currentEvent === 'table') {
+          try {
+            // Base64 解码（支持 UTF-8 中文）
+            const binaryStr = atob(currentData)
+            const bytes = Uint8Array.from(binaryStr, c => c.charCodeAt(0))
+            const jsonStr = new TextDecoder('utf-8').decode(bytes)
+            const tableData = JSON.parse(jsonStr)
+            console.log('[SSE] 收到表格数据:', tableData)
+            callbacks.onTable?.(tableData)
+          } catch (e) {
+            console.error('解析表格数据失败:', e, currentData)
+          }
+        } else if (currentEvent === 'done') {
+          try {
+            const doneData = JSON.parse(currentData)
+            console.log('[SSE] 完成:', doneData)
+            callbacks.onDone?.(doneData)
+          } catch (e) {
+            console.error('解析完成数据失败:', e)
+          }
+        } else if (currentEvent === 'error') {
+          try {
+            const errorData = JSON.parse(currentData)
+            callbacks.onError?.(errorData.message)
+          } catch (e) {
+            callbacks.onError?.(currentData)
+          }
+        }
+      }
+    }
+  }
+}
+
+// Agent 模式问答（SSE 流式，自动决定是否查询数据库）
+export interface AgentStreamCallbacks {
+  onAnswer?: (chunk: string) => void
+  onDone?: () => void
+  onError?: (message: string) => void
+}
+
+export const queryAgentStream = async (
+  question: string,
+  callbacks: AgentStreamCallbacks,
+  sessionId?: string
+): Promise<void> => {
+  const response = await fetch('/api/query-agent', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ question, session_id: sessionId }),
+  })
+
+  if (!response.ok) {
+    callbacks.onError?.('请求失败')
+    return
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) {
+    callbacks.onError?.('无法读取响应流')
+    return
+  }
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    
+    const parts = buffer.split('\n\n')
+    buffer = parts.pop() || ''
+
+    for (const part of parts) {
+      const lines = part.split('\n')
+      let currentEvent = ''
+      let currentData = ''
+      
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim()
+        } else if (line.startsWith('data: ')) {
+          currentData = line.slice(6)
+        }
+      }
+      
+      if (currentEvent && currentData !== '') {
+        if (currentEvent === 'answer') {
+          callbacks.onAnswer?.(currentData)
+        } else if (currentEvent === 'done') {
+          callbacks.onDone?.()
+        } else if (currentEvent === 'error') {
+          try {
+            const errorData = JSON.parse(currentData)
+            callbacks.onError?.(errorData.message)
+          } catch (e) {
+            callbacks.onError?.(currentData)
+          }
+        }
+      }
+    }
+  }
 }
 
 // 训练结果类型

@@ -55,3 +55,5 @@ config_local.py
 # System
 .DS_Store
 Thumbs.db
+/train-sql
+/train-document

@@ -13,6 +13,11 @@ mysql-connector-python>=8.0.0
 # OpenAI 客户端（用于 DeepSeek API）
 openai>=1.0.0
 
+# LangChain（用于 LLM 编排、Memory、Tools）
+langchain>=0.3.0
+langchain-openai>=0.2.0
+langgraph>=0.2.0
+
 # 数据处理
 pandas>=2.0.0
 numpy>=1.24.0

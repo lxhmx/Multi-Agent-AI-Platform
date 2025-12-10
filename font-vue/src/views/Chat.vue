@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { queryQuestion } from '@/api'
+import { queryQuestionStream, queryAgentStream } from '@/api'
 import type { QueryResult } from '@/api'
 
 interface Message {
@@ -9,13 +9,20 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   time: string
-  data?: QueryResult
+  data?: Partial<QueryResult>
+  isStreaming?: boolean
 }
 
 const messages = ref<Message[]>([])
 const inputText = ref('')
 const loading = ref(false)
 const chatContainer = ref<HTMLElement>()
+
+// 会话 ID（用于记忆功能，页面加载时生成唯一 ID）
+const sessionId = ref<string>(`session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
+
+// 模式切换：false = 普通模式（固定流程），true = Agent 模式（智能决策）
+const useAgentMode = ref<boolean>(true)
 
 // 初始化欢迎消息
 onMounted(() => {
@@ -41,7 +48,7 @@ const scrollToBottom = () => {
   })
 }
 
-// 发送消息
+// 发送消息（SSE 流式模式）
 const sendMessage = async () => {
   const text = inputText.value.trim()
   if (!text || loading.value) return
@@ -57,28 +64,94 @@ const sendMessage = async () => {
   inputText.value = ''
   scrollToBottom()
   
-  // 发送请求
+  // 创建助手消息占位符（用于流式更新）
+  const assistantMsgId = Date.now() + 1
+  const assistantMsg: Message = {
+    id: assistantMsgId,
+    role: 'assistant',
+    content: '',
+    time: formatTime(new Date()),
+    isStreaming: true,
+    data: {}
+  }
+  messages.value.push(assistantMsg)
+  
+  // 发送 SSE 请求
   loading.value = true
   try {
-    const res = await queryQuestion(text)
-    
-    // 添加助手回复
-    messages.value.push({
-      id: Date.now(),
-      role: 'assistant',
-      content: res.success ? res.answer : (res.message || '抱歉，我无法理解您的问题'),
-      time: formatTime(new Date()),
-      data: res.success ? res : undefined
-    })
+    if (useAgentMode.value) {
+      // Agent 模式：智能决策，自动调用工具
+      await queryAgentStream(text, {
+        onAnswer: (chunk: string) => {
+          const msg = messages.value.find(m => m.id === assistantMsgId)
+          if (msg) {
+            msg.content += chunk
+            scrollToBottom()
+          }
+        },
+        onDone: () => {
+          const msg = messages.value.find(m => m.id === assistantMsgId)
+          if (msg) {
+            msg.isStreaming = false
+          }
+          loading.value = false
+          scrollToBottom()
+        },
+        onError: (message: string) => {
+          const msg = messages.value.find(m => m.id === assistantMsgId)
+          if (msg) {
+            msg.content = message || '抱歉，我无法理解您的问题'
+            msg.isStreaming = false
+          }
+          loading.value = false
+          scrollToBottom()
+        }
+      }, sessionId.value)
+    } else {
+      // 普通模式：固定流程，返回表格数据
+      await queryQuestionStream(text, {
+        onAnswer: (chunk: string) => {
+          const msg = messages.value.find(m => m.id === assistantMsgId)
+          if (msg) {
+            msg.content += chunk
+            scrollToBottom()
+          }
+        },
+        onTable: (table) => {
+          const msg = messages.value.find(m => m.id === assistantMsgId)
+          if (msg) {
+            msg.data = { ...msg.data, table, success: true }
+            console.log('[Chat] 更新表格数据:', table)
+            scrollToBottom()
+          }
+        },
+        onDone: (data) => {
+          const msg = messages.value.find(m => m.id === assistantMsgId)
+          if (msg) {
+            msg.isStreaming = false
+            msg.data = { ...msg.data, row_count: data.row_count }
+          }
+          loading.value = false
+          scrollToBottom()
+        },
+        onError: (message: string) => {
+          const msg = messages.value.find(m => m.id === assistantMsgId)
+          if (msg) {
+            msg.content = message || '抱歉，我无法理解您的问题'
+            msg.isStreaming = false
+          }
+          loading.value = false
+          scrollToBottom()
+        }
+      }, sessionId.value)
+    }
   } catch (error: any) {
-    messages.value.push({
-      id: Date.now(),
-      role: 'assistant',
-      content: '抱歉，服务暂时不可用，请稍后重试。',
-      time: formatTime(new Date())
-    })
+    const msg = messages.value.find(m => m.id === assistantMsgId)
+    if (msg) {
+      msg.content = '抱歉，服务暂时不可用，请稍后重试。'
+      msg.isStreaming = false
+    }
     ElMessage.error('请求失败')
-  } finally {
     loading.value = false
     scrollToBottom()
   }
@@ -95,8 +168,27 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 <template>
   <div class="chat-page">
-    <h1 class="page-title">智能问答</h1>
-    <p class="page-subtitle">与知识库进行对话式交互</p>
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">智能问答</h1>
+        <p class="page-subtitle">与知识库进行对话式交互</p>
+      </div>
+      <div class="mode-switch">
+        <span class="mode-label">{{ useAgentMode ? 'Agent 模式' : '普通模式' }}</span>
+        <el-switch 
+          v-model="useAgentMode" 
+          active-text="智能"
+          inactive-text="普通"
+          :active-color="'#7c3aed'"
+        />
+        <el-tooltip 
+          :content="useAgentMode ? 'Agent 模式：AI 自动决定是否查询数据库' : '普通模式：固定流程，每次都查询数据库并返回表格'"
+          placement="bottom"
+        >
+          <el-icon class="mode-help"><QuestionFilled /></el-icon>
+        </el-tooltip>
+      </div>
+    </div>
     
     <div class="chat-container">
       <!-- 消息列表 -->
@@ -117,44 +209,35 @@ const handleKeydown = (e: KeyboardEvent) => {
           </div>
           
           <div class="message-content">
-            <div class="message-bubble">
-              {{ msg.content }}
+            <div class="message-bubble" :class="{ streaming: msg.isStreaming }">
+              {{ msg.content }}<span v-if="msg.isStreaming" class="cursor">|</span>
             </div>
             
-            <!-- 如果有查询结果，显示SQL和表格 -->
-            <template v-if="msg.data?.sql">
-              <div class="sql-block">
-                <div class="sql-header">
-                  <el-icon><Document /></el-icon>
-                  <span>生成的 SQL</span>
-                </div>
-                <pre class="sql-code">{{ msg.data.sql }}</pre>
+            <!-- 如果有查询结果，显示表格 -->
+            <div v-if="msg.data?.table?.rows && msg.data.table.rows.length > 0" class="result-table">
+              <div class="table-header">
+                <el-icon><Grid /></el-icon>
+                <span>查询结果 ({{ msg.data.table.total || msg.data.row_count || msg.data.table.rows.length }} 条)</span>
               </div>
-              
-              <!-- 数据表格 -->
-              <div v-if="msg.data.table?.rows?.length" class="result-table">
-                <div class="table-header">
-                  <el-icon><Grid /></el-icon>
-                  <span>查询结果 ({{ msg.data.row_count }} 条)</span>
-                </div>
-                <el-table 
-                  :data="msg.data.table.rows.slice(0, 10)" 
-                  size="small"
-                  max-height="300"
-                >
-                  <el-table-column 
-                    v-for="col in msg.data.table.columns" 
-                    :key="col.field"
-                    :prop="col.field"
-                    :label="col.title"
-                    min-width="100"
-                  />
-                </el-table>
-                <div v-if="msg.data.row_count > 10" class="table-more">
-                  显示前 10 条，共 {{ msg.data.row_count }} 条数据
-                </div>
+              <el-table 
+                :data="msg.data.table.rows.slice(0, 10)" 
+                size="small"
+                max-height="300"
+                stripe
+              >
+                <el-table-column 
+                  v-for="col in msg.data.table.columns" 
+                  :key="col.field"
+                  :prop="col.field"
+                  :label="col.title"
+                  min-width="120"
+                  show-overflow-tooltip
+                />
+              </el-table>
+              <div v-if="msg.data.table.total > 10 || msg.data.table.rows.length > 10" class="table-more">
+                显示前 10 条，共 {{ msg.data.table.total || msg.data.table.rows.length }} 条数据
               </div>
-            </template>
+            </div>
             
             <div class="message-time">{{ msg.time }}</div>
           </div>
@@ -208,6 +291,13 @@ const handleKeydown = (e: KeyboardEvent) => {
   flex-direction: column;
 }
 
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
 .page-title {
   font-size: 24px;
   font-weight: 600;
@@ -218,7 +308,32 @@ const handleKeydown = (e: KeyboardEvent) => {
 .page-subtitle {
   font-size: 14px;
   color: #666;
-  margin-bottom: 24px;
+  margin-bottom: 0;
+}
+
+.mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #f5f3ff;
+  border-radius: 20px;
+  
+  .mode-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #7c3aed;
+  }
+  
+  .mode-help {
+    color: #999;
+    cursor: help;
+    font-size: 16px;
+    
+    &:hover {
+      color: #7c3aed;
+    }
+  }
 }
 
 .chat-container {
@@ -404,5 +519,22 @@ const handleKeydown = (e: KeyboardEvent) => {
   font-size: 12px;
   color: #999;
   text-align: center;
+}
+
+// 流式输出光标闪烁效果
+.cursor {
+  display: inline-block;
+  animation: blink 1s infinite;
+  color: #7c3aed;
+  font-weight: bold;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.message-bubble.streaming {
+  min-height: 20px;
 }
 </style>
