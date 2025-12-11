@@ -245,19 +245,6 @@ const handleKeydown = (e: KeyboardEvent) => {
           </div>
         </div>
         
-        <!-- 加载中 -->
-        <div v-if="loading" class="message-item assistant">
-          <div class="message-avatar">
-            <el-icon :size="18" color="#fff"><ChatDotRound /></el-icon>
-          </div>
-          <div class="message-content">
-            <div class="message-bubble loading">
-              <span class="dot"></span>
-              <span class="dot"></span>
-              <span class="dot"></span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
     

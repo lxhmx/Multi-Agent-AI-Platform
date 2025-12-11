@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { uploadFile, trainManual, trainSql, trainDocument } from '@/api'
 
@@ -10,15 +10,66 @@ const activeMode = ref<'upload' | 'manual'>('upload')
 const fileList = ref<any[]>([])
 const uploading = ref(false)
 
-// 手动输入相关
-const manualForm = ref({
-  type: 'sql' as 'sql' | 'ddl' | 'documentation',
-  content: '',
-  title: '',
-  keywords: '',
-  tags: ''
+// 手动输入 - 训练类型
+const trainType = ref<'question-sql' | 'ddl' | 'documentation'>('question-sql')
+
+// Question-SQL 表单
+const questionSqlForm = ref({
+  question: '',
+  sql: ''
 })
+
+// DDL 表单（只需要 DDL 内容，Vanna 会自动解析表结构）
+const ddlForm = ref({
+  content: ''
+})
+
+// 文档表单（只需要内容，Vanna 通过向量语义检索）
+const docForm = ref({
+  content: ''
+})
+
 const submitting = ref(false)
+
+// 示例数据
+const examples = {
+  'question-sql': [
+    { question: '查询所有在线设备', sql: "SELECT * FROM devices WHERE status = 'online'" },
+    { question: '统计各类型设备数量', sql: 'SELECT device_type, COUNT(*) as count FROM devices GROUP BY device_type' },
+    { question: '查询本月新增的设备', sql: "SELECT * FROM devices WHERE MONTH(create_time) = MONTH(CURDATE()) AND YEAR(create_time) = YEAR(CURDATE())" }
+  ],
+  'ddl': [
+    { content: 'CREATE TABLE users (\n  id INT PRIMARY KEY,\n  name VARCHAR(100),\n  email VARCHAR(200)\n)' }
+  ],
+  'documentation': [
+    { content: '设备状态说明：online 表示在线，offline 表示离线，maintenance 表示维护中' }
+  ]
+}
+
+// 填充示例
+const fillExample = (index: number) => {
+  if (trainType.value === 'question-sql') {
+    const ex = examples['question-sql'][index]
+    questionSqlForm.value = { question: ex.question, sql: ex.sql }
+  } else if (trainType.value === 'ddl') {
+    const ex = examples['ddl'][0]
+    ddlForm.value = { content: ex.content }
+  } else {
+    const ex = examples['documentation'][0]
+    docForm.value = { content: ex.content }
+  }
+}
+
+// 表单是否有效
+const isFormValid = computed(() => {
+  if (trainType.value === 'question-sql') {
+    return questionSqlForm.value.question.trim() && questionSqlForm.value.sql.trim()
+  } else if (trainType.value === 'ddl') {
+    return ddlForm.value.content.trim()
+  } else {
+    return docForm.value.content.trim()
+  }
+})
 
 // 处理文件上传
 const handleUpload = async (options: any) => {
@@ -42,23 +93,46 @@ const handleUpload = async (options: any) => {
 
 // 提交手动训练
 const handleManualSubmit = async () => {
-  if (!manualForm.value.content.trim()) {
-    ElMessage.warning('请输入训练内容')
+  if (!isFormValid.value) {
+    ElMessage.warning('请填写必填项')
     return
   }
   
   submitting.value = true
   try {
-    const res = await trainManual(manualForm.value)
-    if (res.success) {
-      ElMessage.success('训练数据提交成功')
-      // 重置表单
-      manualForm.value = {
+    let payload: any = {}
+    
+    if (trainType.value === 'question-sql') {
+      // Question-SQL 对训练
+      payload = {
         type: 'sql',
-        content: '',
-        title: '',
-        keywords: '',
-        tags: ''
+        title: questionSqlForm.value.question,  // question 作为 title
+        content: questionSqlForm.value.sql
+      }
+    } else if (trainType.value === 'ddl') {
+      // DDL 训练（只需要内容）
+      payload = {
+        type: 'ddl',
+        content: ddlForm.value.content
+      }
+    } else {
+      // 文档训练（只需要内容，无需标题）
+      payload = {
+        type: 'documentation',
+        content: docForm.value.content
+      }
+    }
+    
+    const res = await trainManual(payload)
+    if (res.success) {
+      ElMessage.success('训练成功！')
+      // 重置表单
+      if (trainType.value === 'question-sql') {
+        questionSqlForm.value = { question: '', sql: '' }
+      } else if (trainType.value === 'ddl') {
+        ddlForm.value = { content: '' }
+      } else {
+        docForm.value = { content: '' }
       }
     } else {
       ElMessage.error(res.message || '提交失败')
@@ -221,65 +295,187 @@ const isTraining = (type: string) => {
       
       <!-- 手动输入模式 -->
       <div v-else class="manual-section">
-        <div class="form-item">
-          <label class="form-label">训练类型</label>
-          <div class="type-buttons">
-            <el-button 
-              :type="manualForm.type === 'sql' ? 'primary' : 'default'"
-              @click="manualForm.type = 'sql'"
-            >SQL</el-button>
-            <el-button 
-              :type="manualForm.type === 'ddl' ? 'primary' : 'default'"
-              @click="manualForm.type = 'ddl'"
-            >DDL</el-button>
-            <el-button 
-              :type="manualForm.type === 'documentation' ? 'primary' : 'default'"
-              @click="manualForm.type = 'documentation'"
-            >文档</el-button>
+        <!-- 训练类型选择卡片 -->
+        <div class="train-type-cards">
+          <div 
+            class="train-type-card"
+            :class="{ active: trainType === 'question-sql' }"
+            @click="trainType = 'question-sql'"
+          >
+            <div class="card-icon question-sql">
+              <el-icon><ChatLineSquare /></el-icon>
+            </div>
+            <div class="card-info">
+              <span class="card-title">问答对训练</span>
+              <span class="card-desc">针对特定业务问题训练 SQL</span>
+            </div>
+            <el-icon v-if="trainType === 'question-sql'" class="card-check"><Select /></el-icon>
+          </div>
+          
+          <div 
+            class="train-type-card"
+            :class="{ active: trainType === 'ddl' }"
+            @click="trainType = 'ddl'"
+          >
+            <div class="card-icon ddl">
+              <el-icon><Grid /></el-icon>
+            </div>
+            <div class="card-info">
+              <span class="card-title">表结构训练</span>
+              <span class="card-desc">训练数据库表的 DDL 定义</span>
+            </div>
+            <el-icon v-if="trainType === 'ddl'" class="card-check"><Select /></el-icon>
+          </div>
+          
+          <div 
+            class="train-type-card"
+            :class="{ active: trainType === 'documentation' }"
+            @click="trainType = 'documentation'"
+          >
+            <div class="card-icon doc">
+              <el-icon><Document /></el-icon>
+            </div>
+            <div class="card-info">
+              <span class="card-title">业务文档训练</span>
+              <span class="card-desc">训练业务术语和规则说明</span>
+            </div>
+            <el-icon v-if="trainType === 'documentation'" class="card-check"><Select /></el-icon>
           </div>
         </div>
         
-        <div class="form-item">
-          <label class="form-label">内容 <span class="required">*</span></label>
-          <el-input
-            v-model="manualForm.content"
-            type="textarea"
-            :rows="6"
-            placeholder="SELECT * FROM users WHERE status = 'active'"
-          />
+        <!-- Question-SQL 表单 -->
+        <div v-if="trainType === 'question-sql'" class="form-panel">
+          <div class="panel-header">
+            <el-icon><ChatLineSquare /></el-icon>
+            <span>问答对训练</span>
+            <el-tooltip content="让 AI 学习「用户问什么 → 应该生成什么 SQL」" placement="top">
+              <el-icon class="help-icon"><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </div>
+          
+          <div class="form-item">
+            <label class="form-label">
+              <span class="label-icon">Q</span>
+              业务问题 <span class="required">*</span>
+            </label>
+            <el-input
+              v-model="questionSqlForm.question"
+              placeholder="例如：查询本月销售额最高的前10个产品"
+            />
+            <div class="form-hint">用自然语言描述用户可能会问的问题</div>
+          </div>
+          
+          <div class="form-item">
+            <label class="form-label">
+              <span class="label-icon sql">SQL</span>
+              对应 SQL <span class="required">*</span>
+            </label>
+            <el-input
+              v-model="questionSqlForm.sql"
+              type="textarea"
+              :rows="5"
+              placeholder="SELECT product_name, SUM(amount) as total FROM sales WHERE MONTH(sale_date) = MONTH(CURDATE()) GROUP BY product_name ORDER BY total DESC LIMIT 10"
+            />
+            <div class="form-hint">这个问题应该执行的 SQL 语句</div>
+          </div>
+          
+          <!-- 示例快捷填充 -->
+          <div class="examples-section">
+            <span class="examples-label">快速填充示例：</span>
+            <div class="example-tags">
+              <span 
+                v-for="(ex, idx) in examples['question-sql']" 
+                :key="idx"
+                class="example-tag"
+                @click="fillExample(idx)"
+              >
+                {{ ex.question }}
+              </span>
+            </div>
+          </div>
         </div>
         
-        <div class="form-item">
-          <label class="form-label">标题</label>
-          <el-input
-            v-model="manualForm.title"
-            placeholder="为这条知识添加标题"
-          />
+        <!-- DDL 表单 -->
+        <div v-else-if="trainType === 'ddl'" class="form-panel">
+          <div class="panel-header">
+            <el-icon><Grid /></el-icon>
+            <span>表结构训练</span>
+            <el-tooltip content="DDL 会被解析并存储，帮助 AI 理解数据库表结构" placement="top">
+              <el-icon class="help-icon"><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </div>
+          
+          <div class="form-item">
+            <label class="form-label">DDL 语句 <span class="required">*</span></label>
+            <el-input
+              v-model="ddlForm.content"
+              type="textarea"
+              :rows="10"
+              placeholder="CREATE TABLE users (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  username VARCHAR(50) NOT NULL COMMENT '用户名',
+  email VARCHAR(100) COMMENT '邮箱',
+  status ENUM('active', 'inactive') DEFAULT 'active' COMMENT '状态',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 可以一次训练多个表
+CREATE TABLE orders (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT COMMENT '用户ID',
+  amount DECIMAL(10,2) COMMENT '订单金额'
+);"
+            />
+            <div class="form-hint">
+              <el-icon><InfoFilled /></el-icon>
+              Vanna 会自动解析表名、字段名、类型和注释，用于生成准确的 SQL
+            </div>
+          </div>
         </div>
         
-        <div class="form-item">
-          <label class="form-label">关键词</label>
-          <el-input
-            v-model="manualForm.keywords"
-            placeholder="用逗号分隔多个关键词"
-          />
+        <!-- 文档表单 -->
+        <div v-else class="form-panel">
+          <div class="panel-header">
+            <el-icon><Document /></el-icon>
+            <span>业务文档训练</span>
+            <el-tooltip content="文档内容会被向量化存储，用户提问时通过语义相似度检索" placement="top">
+              <el-icon class="help-icon"><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </div>
+          
+          <div class="form-item">
+            <label class="form-label">文档内容 <span class="required">*</span></label>
+            <el-input
+              v-model="docForm.content"
+              type="textarea"
+              :rows="10"
+              placeholder="设备状态说明：
+- status = 'online'：设备在线，正常运行
+- status = 'offline'：设备离线，无法连接
+- status = 'maintenance'：设备维护中，暂停服务
+
+销售指标定义：
+- GMV：成交总额，包含已取消订单
+- 实际销售额：已完成订单的金额总和
+- 客单价：实际销售额 / 订单数"
+            />
+            <div class="form-hint">
+              <el-icon><InfoFilled /></el-icon>
+              文档会被向量化存储，当用户提问时，系统会检索语义相似的文档作为 SQL 生成的上下文
+            </div>
+          </div>
         </div>
         
-        <div class="form-item">
-          <label class="form-label">业务标签</label>
-          <el-input
-            v-model="manualForm.tags"
-            placeholder="用逗号分隔多个标签"
-          />
-        </div>
-        
+        <!-- 提交按钮 -->
         <el-button 
           type="primary" 
           class="submit-btn"
           :loading="submitting"
+          :disabled="!isFormValid"
           @click="handleManualSubmit"
         >
-          提交训练数据
+          <el-icon><Upload /></el-icon>
+          提交训练
         </el-button>
       </div>
     </div>
@@ -461,28 +657,205 @@ const isTraining = (type: string) => {
 }
 
 .manual-section {
-  .form-item {
-    margin-bottom: 20px;
+  // 训练类型选择卡片
+  .train-type-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  
+  .train-type-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: #f9f9f9;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    position: relative;
     
-    .form-label {
-      display: block;
-      font-size: 14px;
-      font-weight: 500;
-      color: #333;
-      margin-bottom: 8px;
+    &:hover {
+      background: #fff;
+      border-color: #e5e7eb;
+      transform: translateY(-2px);
+    }
+    
+    &.active {
+      background: #fff;
+      border-color: #7c3aed;
+      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
       
-      .required {
+      .card-title {
+        color: #7c3aed;
+      }
+    }
+    
+    .card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: #fff;
+      flex-shrink: 0;
+      
+      &.question-sql {
+        background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+      }
+      
+      &.ddl {
+        background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+      }
+      
+      &.doc {
+        background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+      }
+    }
+    
+    .card-info {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+      
+      .card-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 2px;
+      }
+      
+      .card-desc {
+        font-size: 12px;
+        color: #999;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+    
+    .card-check {
+      color: #7c3aed;
+      font-size: 18px;
+    }
+  }
+  
+  // 表单面板
+  .form-panel {
+    background: #fafafa;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #eee;
+    
+    .el-icon {
+      color: #7c3aed;
+    }
+    
+    .help-icon {
+      color: #999;
+      font-size: 14px;
+      cursor: help;
+      margin-left: auto;
+      
+      &:hover {
         color: #7c3aed;
       }
     }
   }
   
-  .type-buttons {
-    display: flex;
-    gap: 12px;
+  .form-item {
+    margin-bottom: 20px;
     
-    .el-button {
-      min-width: 80px;
+    .form-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 8px;
+      
+      .label-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+        
+        &.sql {
+          background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+          font-size: 10px;
+        }
+      }
+      
+      .required {
+        color: #ef4444;
+      }
+    }
+    
+    .form-hint {
+      font-size: 12px;
+      color: #999;
+      margin-top: 6px;
+    }
+  }
+  
+  // 示例区域
+  .examples-section {
+    background: #fff;
+    border-radius: 8px;
+    padding: 12px 16px;
+    border: 1px dashed #e5e7eb;
+    
+    .examples-label {
+      font-size: 12px;
+      color: #666;
+      margin-right: 8px;
+    }
+    
+    .example-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    
+    .example-tag {
+      display: inline-block;
+      padding: 6px 12px;
+      background: #f5f3ff;
+      color: #7c3aed;
+      border-radius: 16px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      
+      &:hover {
+        background: #7c3aed;
+        color: #fff;
+      }
     }
   }
   
@@ -492,7 +865,30 @@ const isTraining = (type: string) => {
     font-size: 16px;
     background: linear-gradient(135deg, #7c3aed 0%, #10b981 100%);
     border: none;
-    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+}
+
+// 响应式适配
+@media (max-width: 768px) {
+  .manual-section {
+    .train-type-cards {
+      grid-template-columns: 1fr;
+    }
+    
+    .train-type-card {
+      .card-desc {
+        display: none;
+      }
+    }
   }
 }
 </style>

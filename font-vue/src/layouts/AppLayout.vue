@@ -6,9 +6,9 @@ const route = useRoute()
 const router = useRouter()
 
 const menuItems = [
+  { path: '/chat', title: '智能问答', icon: 'ChatDotRound' },
   { path: '/training', title: '知识训练', icon: 'Upload' },
-  { path: '/data-manage', title: '数据管理', icon: 'Document' },
-  { path: '/chat', title: '智能问答', icon: 'ChatDotRound' }
+  { path: '/data-manage', title: '数据管理', icon: 'Document' }
 ]
 
 const activeMenu = computed(() => route.path)
@@ -22,33 +22,48 @@ const handleMenuSelect = (path: string) => {
   <div class="app-layout">
     <!-- 侧边栏 -->
     <aside class="sidebar">
-      <div class="logo">
-        <div class="logo-icon">
-          <el-icon :size="24" color="#fff"><Connection /></el-icon>
-        </div>
-        <div class="logo-text">
-          <span class="title">智能知识库</span>
-          <span class="subtitle">问答平台</span>
-        </div>
+      <!-- 背景装饰 -->
+      <div class="sidebar-bg">
+        <div class="bg-circle circle-1"></div>
+        <div class="bg-circle circle-2"></div>
+        <div class="bg-circle circle-3"></div>
       </div>
       
-      <el-menu
-        :default-active="activeMenu"
-        class="sidebar-menu"
-        @select="handleMenuSelect"
-      >
-        <el-menu-item 
-          v-for="item in menuItems" 
-          :key="item.path"
-          :index="item.path"
-        >
-          <el-icon><component :is="item.icon" /></el-icon>
-          <span>{{ item.title }}</span>
-        </el-menu-item>
-      </el-menu>
-      
-      <div class="sidebar-footer">
-        © 2025 智能知识库平台
+      <div class="sidebar-content">
+        <div class="logo">
+          <div class="logo-icon">
+            <el-icon :size="26" color="#fff"><Connection /></el-icon>
+          </div>
+          <div class="logo-text">
+            <span class="title">智能知识库</span>
+            <span class="subtitle">Text2SQL 问答平台</span>
+          </div>
+        </div>
+        
+        <nav class="nav-menu">
+          <div 
+            v-for="item in menuItems" 
+            :key="item.path"
+            class="nav-item"
+            :class="{ active: activeMenu === item.path }"
+            @click="handleMenuSelect(item.path)"
+          >
+            <div class="nav-icon">
+              <el-icon><component :is="item.icon" /></el-icon>
+            </div>
+            <span class="nav-title">{{ item.title }}</span>
+            <div class="nav-indicator"></div>
+          </div>
+        </nav>
+        
+        <div class="sidebar-footer">
+          <div class="footer-divider"></div>
+          <div class="footer-info">
+            <el-icon><InfoFilled /></el-icon>
+            <span>v1.0.0</span>
+          </div>
+          <div class="footer-copyright">© 2025 智能知识库</div>
+        </div>
       </div>
     </aside>
     
@@ -66,26 +81,78 @@ const handleMenuSelect = (path: string) => {
 }
 
 .sidebar {
-  width: 200px;
-  background: #fff;
+  width: 240px;
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #f0f0f0;
+  position: relative;
+  overflow: hidden;
+  
+  // 背景装饰圆圈
+  .sidebar-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    
+    .bg-circle {
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0.08;
+      
+      &.circle-1 {
+        width: 200px;
+        height: 200px;
+        background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+        top: -60px;
+        right: -60px;
+        animation: float 8s ease-in-out infinite;
+      }
+      
+      &.circle-2 {
+        width: 150px;
+        height: 150px;
+        background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+        bottom: 20%;
+        left: -40px;
+        animation: float 10s ease-in-out infinite reverse;
+      }
+      
+      &.circle-3 {
+        width: 100px;
+        height: 100px;
+        background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+        bottom: -20px;
+        right: 20px;
+        animation: float 6s ease-in-out infinite;
+      }
+    }
+  }
+  
+  .sidebar-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
   
   .logo {
     display: flex;
     align-items: center;
-    padding: 20px 16px;
-    gap: 12px;
+    padding: 24px 20px;
+    gap: 14px;
     
     .logo-icon {
-      width: 40px;
-      height: 40px;
-      background: linear-gradient(180deg, #7c3aed 0%, #10b981 100%);
-      border-radius: 10px;
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #10b981 100%);
+      border-radius: 14px;
       display: flex;
       align-items: center;
       justify-content: center;
+      box-shadow: 0 8px 24px rgba(124, 58, 237, 0.4);
+      animation: pulse-glow 3s ease-in-out infinite;
     }
     
     .logo-text {
@@ -93,55 +160,168 @@ const handleMenuSelect = (path: string) => {
       flex-direction: column;
       
       .title {
-        font-size: 16px;
-        font-weight: 600;
-        color: #7c3aed;
+        font-size: 18px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #fff 0%, #e0e7ff 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
       }
       
       .subtitle {
-        font-size: 12px;
-        color: #999;
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.5);
+        margin-top: 2px;
+        letter-spacing: 0.5px;
       }
     }
   }
   
-  .sidebar-menu {
+  .nav-menu {
     flex: 1;
-    padding: 0 12px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
     
-    :deep(.el-menu-item) {
-      height: 44px;
-      line-height: 44px;
-      margin-bottom: 4px;
-      border-radius: 8px;
+    .nav-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.08);
+      transition: all 0.3s ease;
       
-      &:hover {
-        background: #f5f5f5;
+      .el-icon {
+        font-size: 18px;
+        color: rgba(255, 255, 255, 0.7);
+        transition: all 0.3s ease;
+      }
+    }
+    
+    .nav-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.7);
+      transition: all 0.3s ease;
+    }
+    
+    .nav-indicator {
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 0;
+      background: linear-gradient(180deg, #7c3aed 0%, #10b981 100%);
+      border-radius: 0 4px 4px 0;
+      transition: height 0.3s ease;
+    }
+    
+    &:hover {
+      background: rgba(255, 255, 255, 0.06);
+      
+      .nav-icon {
+        background: rgba(255, 255, 255, 0.12);
+        transform: scale(1.05);
       }
       
-      &.is-active {
-        background: linear-gradient(135deg, #7c3aed 0%, #10b981 100%) !important;
-        color: #fff !important;
+      .nav-title {
+        color: rgba(255, 255, 255, 0.9);
+      }
+    }
+    
+    &.active {
+      background: linear-gradient(135deg, rgba(124, 58, 237, 0.25) 0%, rgba(16, 185, 129, 0.15) 100%);
+      
+      .nav-icon {
+        background: linear-gradient(135deg, #7c3aed 0%, #10b981 100%);
+        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
         
         .el-icon {
           color: #fff;
         }
       }
+      
+      .nav-title {
+        color: #fff;
+        font-weight: 600;
+      }
+      
+      .nav-indicator {
+        height: 24px;
+      }
     }
   }
   
   .sidebar-footer {
-    padding: 16px;
-    font-size: 12px;
-    color: #999;
-    text-align: center;
+    padding: 16px 20px 24px;
+    
+    .footer-divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.1) 50%, transparent 100%);
+      margin-bottom: 16px;
+    }
+    
+    .footer-info {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.4);
+      margin-bottom: 8px;
+      
+      .el-icon {
+        font-size: 14px;
+      }
+    }
+    
+    .footer-copyright {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.3);
+      text-align: center;
+    }
   }
 }
 
 .main-content {
   flex: 1;
-  background: #f8f9fc;
+  background: linear-gradient(180deg, #f8f9fc 0%, #f0f4f8 100%);
   padding: 24px;
   overflow-y: auto;
+}
+
+// 动画
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-20px) rotate(5deg);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 8px 24px rgba(124, 58, 237, 0.4);
+  }
+  50% {
+    box-shadow: 0 8px 32px rgba(124, 58, 237, 0.6), 0 0 48px rgba(16, 185, 129, 0.3);
+  }
 }
 </style>
