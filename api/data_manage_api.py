@@ -9,7 +9,7 @@ from datetime import datetime, date
 from pathlib import Path
 from typing import Optional, List
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from pydantic import BaseModel
 import mysql.connector
 from mysql.connector import Error
@@ -20,6 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from config import DB_CONFIG
 
+from common.dependencies import get_current_user
 
 # ==================== 数据库工具函数 ====================
 
@@ -190,7 +191,7 @@ class DeleteFilesRequest(BaseModel):
 # ==================== 接口 ====================
 
 @router.get("/stats")
-async def get_training_stats():
+async def get_training_stats(user=Depends(get_current_user)):
     """获取训练数据统计"""
     conn = get_db_connection()
     if not conn:
@@ -245,7 +246,7 @@ async def get_training_stats():
 
 
 @router.get("/activity")
-async def get_training_activity(days: int = Query(7, ge=1, le=365)):
+async def get_activity(days: int = Query(30, ge=1, le=365), user=Depends(get_current_user)):
     """获取训练活跃度"""
     conn = get_db_connection()
     if not conn:
@@ -286,13 +287,14 @@ async def get_training_activity(days: int = Query(7, ge=1, le=365)):
 
 
 @router.get("/files")
-async def get_training_files(
+async def get_files(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     train_type: str = Query(""),
     file_type: str = Query(""),
     train_status: str = Query(""),
-    keyword: str = Query("")
+    keyword: str = Query(""),
+    user=Depends(get_current_user),
 ):
     """获取训练文件列表"""
     conn = get_db_connection()
@@ -368,7 +370,7 @@ async def get_training_files(
 
 
 @router.delete("/files")
-async def delete_training_files(req: DeleteFilesRequest):
+async def delete_files(req: DeleteFilesRequest, user=Depends(get_current_user)):
     """删除训练文件记录"""
     conn = get_db_connection()
     if not conn:

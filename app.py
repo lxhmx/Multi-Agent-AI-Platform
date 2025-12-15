@@ -21,6 +21,7 @@ PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # 导入各个模块的路由器
+from api.auth_api import router as auth_router
 from api.ask_api import router as ask_router
 from api.data_manage_api import router as data_manage_router
 from api.upload_api import router as upload_router
@@ -58,6 +59,7 @@ app.add_middleware(
 )
 
 # 注册所有路由
+app.include_router(auth_router)          # 鉴权接口
 app.include_router(ask_router)           # 问答接口
 app.include_router(data_manage_router)   # 数据管理接口
 app.include_router(upload_router)        # 上传接口

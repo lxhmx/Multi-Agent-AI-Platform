@@ -12,7 +12,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import pandas as pd
@@ -26,6 +26,7 @@ from common.vanna_instance import get_vanna_instance
 from common.langchain_llm import stream_chat_response
 from common.conn_mysql import get_mysql_connection
 from common.langchain_agent import run_agent_stream_async
+from common.dependencies import get_current_user
 
 # 创建路由器
 router = APIRouter(prefix="/api", tags=["问答"])
@@ -54,7 +55,7 @@ def convert_value(obj):
 # ==================== 查询接口 ====================
 
 @router.post("/query")
-async def query(req: QueryRequest):
+async def query(req: QueryRequest, user=Depends(get_current_user)):
     """
     查询接口 - 根据用户问题生成 SQL 并执行查询，返回人性化的回答
     """
@@ -129,7 +130,8 @@ async def query(req: QueryRequest):
                 "sql": sql,
                 "table": table_data,
                 "chart": chart_config,
-                "row_count": len(converted_results)
+                "row_count": len(converted_results),
+                "user_id": user["id"],
             }
             
         except mysql.connector.Error as db_error:
@@ -149,7 +151,7 @@ async def query(req: QueryRequest):
 
 
 @router.post("/query-stream")
-async def query_stream(req: QueryRequest):
+async def query_stream(req: QueryRequest, user=Depends(get_current_user)):
     """
     流式查询接口 - 使用 SSE 协议逐字返回回答
     """
@@ -258,7 +260,7 @@ async def query_stream(req: QueryRequest):
                 yield f"event: table\ndata: {table_b64}\n\n"
                 
                 # 6. 发送完成信号
-                done_json = json.dumps({'row_count': len(converted_results)})
+                done_json = json.dumps({'row_count': len(converted_results), 'user_id': user["id"]})
                 yield f"event: done\ndata: {done_json}\n\n"
                 
             except mysql.connector.Error as db_error:

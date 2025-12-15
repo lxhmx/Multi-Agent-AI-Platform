@@ -60,8 +60,8 @@ def text2sql_query(question: str) -> dict:
     try:
         vn = get_vanna_instance()
         
-        # 1. 生成 SQL
-        sql = vn.generate_sql(question)
+        # 1. 生成 SQL（允许 LLM 查看数据以生成更准确的 SQL）
+        sql = vn.generate_sql(question, allow_llm_to_see_data=True)
         
         if not sql or not sql.strip():
             return {
@@ -69,7 +69,24 @@ def text2sql_query(question: str) -> dict:
                 "error": "无法根据问题生成 SQL，可能是问题描述不够清晰或数据库中没有相关表"
             }
         
-        sql_upper = sql.strip().upper()
+        # 清理 SQL：移除 intermediate_sql 等前缀和注释
+        sql_clean = sql.strip()
+        
+        # 移除注释行和 intermediate_sql 标记
+        lines = sql_clean.split('\n')
+        sql_lines = []
+        for line in lines:
+            stripped = line.strip().lower()
+            # 跳过注释行
+            if stripped.startswith('--') or stripped.startswith('#'):
+                continue
+            # 跳过 intermediate_sql 标记行
+            if stripped == 'intermediate_sql':
+                continue
+            sql_lines.append(line)
+        sql_clean = '\n'.join(sql_lines).strip()
+        
+        sql_upper = sql_clean.upper()
         if not sql_upper.startswith('SELECT'):
             return {
                 "success": False,
@@ -79,7 +96,7 @@ def text2sql_query(question: str) -> dict:
         # 2. 执行 SQL
         conn = get_mysql_connection()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute(sql)
+        cursor.execute(sql_clean)
         results = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -106,7 +123,7 @@ def text2sql_query(question: str) -> dict:
         
         return {
             "success": True,
-            "sql": sql,
+            "sql": sql_clean,
             "row_count": row_count,
             "columns": columns,
             "data_preview": data_preview

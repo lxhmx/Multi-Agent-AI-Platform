@@ -1,10 +1,24 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 
+const getToken = () => localStorage.getItem('access_token')
+
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
     redirect: '/chat'
+  },
+  {
+    path: '/login',
+    name: 'Login',
+    component: () => import('@/views/Login.vue'),
+    meta: { title: '登录', layout: 'blank' }
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/views/Register.vue'),
+    meta: { title: '注册', layout: 'blank' }
   },
   {
     path: '/training',
@@ -29,6 +43,19 @@ const routes: RouteRecordRaw[] = [
 const router = createRouter({
   history: createWebHistory(),
   routes
+})
+
+router.beforeEach((to, _from, next) => {
+  const token = getToken()
+  if (to.path === '/login' || to.path === '/register') {
+    // 已登录访问登录/注册页，跳转到首页
+    if (token) return next('/chat')
+    return next()
+  }
+  if (!token) {
+    return next('/login')
+  }
+  next()
 })
 
 export default router

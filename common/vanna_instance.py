@@ -77,14 +77,16 @@ class MyVanna(ChromaDB_VectorStore, DeepSeekChat):
     
     def generate_sql(self, question: str, **kwargs) -> str:
         """
-        重写 generate_sql 方法，自动添加租户 ID 过滤条件
+        重写 generate_sql 方法生成 SQL
+        注意：暂时禁用自动添加 tenant_id 过滤，因为在 JOIN 查询中会导致问题
+        如需启用多租户过滤，建议在训练数据的 DDL 中明确指定 tenant_id 条件
         """
         # 调用父类方法生成原始 SQL
         sql = super().generate_sql(question, **kwargs)
         
-        if sql:
-            # 添加租户 ID 过滤条件
-            sql = self._add_tenant_filter(sql)
+        # 暂时禁用 tenant_id 过滤
+        # if sql:
+        #     sql = self._add_tenant_filter(sql)
         
         return sql
     
@@ -136,6 +138,19 @@ class MyVanna(ChromaDB_VectorStore, DeepSeekChat):
 _vn = None
 
 
+def run_sql_func(sql: str):
+    """执行 SQL 查询并返回 DataFrame"""
+    import pandas as pd
+    from common.conn_mysql import get_mysql_connection
+    
+    conn = get_mysql_connection()
+    try:
+        df = pd.read_sql(sql, conn)
+        return df
+    finally:
+        conn.close()
+
+
 def get_vanna_instance():
     """获取或创建 Vanna 实例（单例模式）"""
     global _vn
@@ -149,6 +164,11 @@ def get_vanna_instance():
             'model': VANNA_MODEL,
             'base_url': VANNA_API_BASE,
             'path': str(db_data_path),
-            'tenant_id': DEFAULT_TENANT_ID
+            'tenant_id': DEFAULT_TENANT_ID,
         })
+        
+        # 设置 run_sql 方法，允许 Vanna 执行中间 SQL 查询
+        _vn.run_sql = run_sql_func
+        _vn.run_sql_is_set = True
+        
     return _vn

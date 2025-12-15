@@ -13,6 +13,12 @@ DB_CONFIG = {
     'charset': 'utf8mb4'
 }
 
+# 鉴权配置
+SECRET_KEY = "please_change_me_to_random_string"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+REFRESH_TOKEN_EXPIRE_DAYS = 7
+
 # DeepSeek API配置
 API_KEY = "your_api_key_here"
 

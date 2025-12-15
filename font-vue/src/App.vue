@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { RouterView } from 'vue-router'
+import { RouterView, useRoute } from 'vue-router'
+import { computed } from 'vue'
 import AppLayout from './layouts/AppLayout.vue'
+
+const route = useRoute()
+const isBlank = computed(() => route.meta.layout === 'blank')
 </script>
 
 <template>
-  <AppLayout>
-    <RouterView />
-  </AppLayout>
+  <RouterView v-slot="{ Component }">
+    <component v-if="isBlank" :is="Component" />
+    <AppLayout v-else>
+      <component :is="Component" />
+    </AppLayout>
+  </RouterView>
 </template>
 
 <style>

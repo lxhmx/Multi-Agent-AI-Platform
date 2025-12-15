@@ -22,3 +22,14 @@ CREATE TABLE IF NOT EXISTS training_files (
     INDEX idx_upload_date (upload_date),
     INDEX idx_file_hash (file_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='训练文件记录表';
+
+-- 用户表（鉴权）
+CREATE TABLE IF NOT EXISTS users (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(64) NOT NULL UNIQUE,
+    email VARCHAR(128),
+    password_hash VARCHAR(255) NOT NULL,
+    disabled TINYINT(1) DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_login DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';

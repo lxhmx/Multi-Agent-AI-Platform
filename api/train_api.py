@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi import Query as QueryParam
 from pydantic import BaseModel
 
@@ -17,6 +17,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from common.vanna_instance import get_vanna_instance
+from common.dependencies import get_current_user
 
 # 创建路由器
 router = APIRouter(prefix="/api", tags=["训练"])
@@ -43,7 +44,7 @@ class DeleteTrainingDataRequest(BaseModel):
 # ==================== 训练接口 ====================
 
 @router.post("/train-sql")
-async def train_sql():
+async def train_sql(user=Depends(get_current_user)):
     """训练 SQL 文件"""
     import os
     import glob
@@ -175,7 +176,7 @@ async def train_sql():
 
 
 @router.post("/train-document")
-async def train_document(req: TrainDocumentRequest = None):
+async def train_document(req: TrainDocumentRequest = None, user=Depends(get_current_user)):
     """训练文档文件"""
     import hashlib
     

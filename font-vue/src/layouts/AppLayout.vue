@@ -16,6 +16,12 @@ const activeMenu = computed(() => route.path)
 const handleMenuSelect = (path: string) => {
   router.push(path)
 }
+
+const handleLogout = () => {
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('refresh_token')
+  router.push('/login')
+}
 </script>
 
 <template>
@@ -69,7 +75,32 @@ const handleMenuSelect = (path: string) => {
     
     <!-- 主内容区 -->
     <main class="main-content">
-      <slot />
+      <header class="topbar">
+        <div class="topbar-left">
+          <span class="page-title">{{ route.meta.title || '控制台' }}</span>
+        </div>
+        <div class="topbar-right">
+          <el-dropdown trigger="click">
+            <span class="user-chip">
+              <el-icon><User /></el-icon>
+              <span class="user-name">账户</span>
+              <el-icon><ArrowDown /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="handleLogout">
+                  <el-icon><SwitchButton /></el-icon>
+                  退出登录
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </header>
+
+      <section class="page-body">
+        <slot />
+      </section>
     </main>
   </div>
 </template>
@@ -301,19 +332,70 @@ const handleMenuSelect = (path: string) => {
 
 .main-content {
   flex: 1;
-  background: linear-gradient(180deg, #f8f9fc 0%, #f0f4f8 100%);
-  padding: 24px;
-  overflow-y: auto;
+  background: linear-gradient(180deg, #0b1020 0%, #0a0f1e 100%);
+  padding: 24px 32px;
+  color: #e5e7eb;
+  display: flex;
+  flex-direction: column;
 }
 
-// 动画
+:deep(.el-dropdown-menu) {
+  min-width: 140px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+  margin-bottom: 16px;
+}
+
+.topbar-left .page-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #f9fafb;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e5e7eb;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.2s ease;
+}
+
+.user-chip:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.page-body {
+  flex: 1;
+  margin-top: 4px;
+}
+
+/* 关键动画 */
 @keyframes float {
-  0%, 100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-20px) rotate(5deg);
-  }
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
 }
 
 @keyframes pulse-glow {
