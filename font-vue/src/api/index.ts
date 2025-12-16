@@ -9,6 +9,16 @@ const api = axios.create({
   }
 })
 
+// 请求拦截器：附加 Authorization 头
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token')
+  if (token) {
+    config.headers = config.headers || {}
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
 // 响应拦截器
 api.interceptors.response.use(
   (response: AxiosResponse) => response.data,

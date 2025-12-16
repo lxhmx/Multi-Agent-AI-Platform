@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { User, Message, Lock, Cpu, Lightning } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const loading = ref(false)
@@ -47,87 +48,89 @@ const doRegister = async () => {
 <template>
   <div class="auth-page">
     <div class="bg-grid"></div>
-    <div class="bg-glow"></div>
-    <div class="card">
-      <div class="brand">
-        <div class="brand-icon">T2S</div>
-        <div class="brand-text">
-          <div class="title">Create Access</div>
-          <div class="subtitle">注册你的数据智能中枢账户</div>
+    <div class="bg-gradient-1"></div>
+    <div class="bg-gradient-2"></div>
+    
+    <div class="center-container">
+      <div class="brand-section">
+        <div class="logo-box">
+          <el-icon><Cpu /></el-icon>
         </div>
+        <div class="brand-title">AI 智能平台</div>
+        <div class="brand-subtitle">创建您的数字化账户</div>
       </div>
 
-      <div class="headline">
-        <div class="title">欢迎加入 Text2SQL Control</div>
-        <div class="desc">创建账户后即可体验登录、问答、训练和数据管理的全链路。</div>
-      </div>
+      <div class="card">
+        <el-form class="form" label-position="top" @submit.prevent>
+          <el-form-item label="用户名">
+            <el-input
+              v-model="form.username"
+              placeholder="请输入用户名"
+              size="large"
+            >
+              <template #prefix>
+                <el-icon><User /></el-icon>
+              </template>
+            </el-input>
+          </el-form-item>
 
-      <el-form class="form" label-position="top" @submit.prevent>
-        <el-form-item label="用户名">
-          <el-input
-            v-model="form.username"
-            placeholder="输入用户名"
-            size="large"
-            clearable
-          >
-            <template #prefix><el-icon><User /></el-icon></template>
-          </el-input>
-        </el-form-item>
-        <el-form-item label="邮箱（可选）">
-          <el-input
-            v-model="form.email"
-            placeholder="用于找回或通知"
-            size="large"
-            clearable
-          >
-            <template #prefix><el-icon><Message /></el-icon></template>
-          </el-input>
-        </el-form-item>
-        <el-form-item label="密码">
-          <el-input
-            v-model="form.password"
-            type="password"
-            placeholder="输入密码"
-            show-password
-            size="large"
-            clearable
-          >
-            <template #prefix><el-icon><Lock /></el-icon></template>
-          </el-input>
-        </el-form-item>
-        <el-form-item label="确认密码">
-          <el-input
-            v-model="form.confirm"
-            type="password"
-            placeholder="再次输入密码"
-            show-password
-            size="large"
-            clearable
-          >
-            <template #prefix><el-icon><Lock /></el-icon></template>
-          </el-input>
-        </el-form-item>
-        <el-button
-          class="primary-btn"
-          type="primary"
-          size="large"
-          round
-          :loading="loading"
-          @click="doRegister"
-        >
-          创建账户
-        </el-button>
-        <div class="switch">
-          已有账户？
-          <el-link type="primary" :underline="false" @click="router.push('/login')">去登录</el-link>
-        </div>
-      </el-form>
+          <el-form-item label="邮箱地址（可选）">
+            <el-input
+              v-model="form.email"
+              placeholder="your@email.com"
+              size="large"
+            >
+              <template #prefix>
+                <el-icon><Message /></el-icon>
+              </template>
+            </el-input>
+          </el-form-item>
+          
+          <el-form-item label="密码">
+            <el-input
+              v-model="form.password"
+              placeholder="设置密码"
+              show-password
+              size="large"
+            >
+              <template #prefix>
+                <el-icon><Lock /></el-icon>
+              </template>
+            </el-input>
+          </el-form-item>
 
-      <div class="footer">
-        <div class="tag">Secure · JWT</div>
-        <div class="tag">FastAPI</div>
-        <div class="tag">AI Ready</div>
+          <el-form-item label="确认密码">
+            <el-input
+              v-model="form.confirm"
+              placeholder="再次输入密码"
+              show-password
+              size="large"
+            >
+              <template #prefix>
+                <el-icon><Lock /></el-icon>
+              </template>
+            </el-input>
+          </el-form-item>
+
+          <el-button
+            class="submit-btn"
+            type="primary"
+            size="large"
+            round
+            :loading="loading"
+            @click="doRegister"
+          >
+            <el-icon class="mr-2"><Lightning /></el-icon>
+            立即注册
+          </el-button>
+
+          <div class="switch">
+            已有账户? <el-link type="primary" :underline="false" @click="router.push('/login')">去登录</el-link>
+          </div>
+        </el-form>
       </div>
+      
+      <div class="footer-text">© 2025 AI 智能平台. 智能驱动未来</div>
     </div>
   </div>
 </template>
@@ -136,122 +139,267 @@ const doRegister = async () => {
 .auth-page {
   position: relative;
   min-height: 100vh;
+  background: #f0f4ff;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(120% 120% at 50% 20%, #172037 0%, #0b0f1f 50%, #05060c 100%);
-  color: #e8ecf8;
   overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
+
+/* 背景网格 */
 .bg-grid {
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
-  background-size: 24px 24px;
-  opacity: 0.35;
+  background-image: 
+    linear-gradient(rgba(78, 108, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(78, 108, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
 }
-.bg-glow {
+
+/* 背景光晕 */
+.bg-gradient-1 {
   position: absolute;
-  inset: 0;
-  background: radial-gradient(60% 60% at 20% 20%, rgba(80, 140, 255, 0.25), transparent 40%),
-              radial-gradient(50% 50% at 80% 30%, rgba(56, 255, 214, 0.2), transparent 40%),
-              radial-gradient(40% 40% at 50% 80%, rgba(255, 166, 74, 0.16), transparent 45%);
-  filter: blur(40px);
-  opacity: 0.7;
+  top: -10%;
+  left: -10%;
+  width: 60%;
+  height: 60%;
+  background: radial-gradient(circle, rgba(162, 184, 255, 0.2) 0%, transparent 70%);
+  filter: blur(60px);
+  animation: float-bg 15s ease-in-out infinite alternate;
 }
-.card {
+
+.bg-gradient-2 {
+  position: absolute;
+  bottom: -10%;
+  right: -10%;
+  width: 60%;
+  height: 60%;
+  background: radial-gradient(circle, rgba(169, 139, 255, 0.2) 0%, transparent 70%);
+  filter: blur(60px);
+  animation: float-bg 12s ease-in-out infinite alternate-reverse;
+}
+
+.center-container {
   position: relative;
-  width: 440px;
-  padding: 32px;
-  border-radius: 18px;
-  background: rgba(12, 17, 32, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-  z-index: 1;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 440px;
 }
-.brand {
+
+.brand-section {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+/* Logo */
+.logo-box {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #00B6DE, #961EFB);
+  border-radius: 14px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 18px;
+  justify-content: center;
+  margin: 0 auto 16px;
+  box-shadow: 0 8px 16px rgba(0, 182, 222, 0.25);
+  color: #fff;
+  font-size: 28px;
+  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+  cursor: pointer;
 }
-.brand-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #46c9ff, #4c6bff);
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  color: #05060c;
-  letter-spacing: 0.5px;
+
+.logo-box:hover {
+  transform: scale(1.15) rotate(5deg);
+  box-shadow: 0 12px 24px rgba(0, 182, 222, 0.35);
 }
-.brand-text .title {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0.3px;
-}
-.brand-text .subtitle {
-  font-size: 12px;
-  color: #9fb4ff;
-}
-.headline .title {
-  font-size: 22px;
-  font-weight: 700;
-  margin-bottom: 6px;
-}
-.headline .desc {
-  font-size: 13px;
-  color: #c5cee0;
-  line-height: 1.5;
-  margin-bottom: 16px;
-}
-.form {
-  margin-top: 12px;
-}
-.el-form-item__label {
-  color: #cfd9ff;
+
+.brand-title {
+  font-size: 24px;
   font-weight: 600;
-  letter-spacing: 0.2px;
+  color: #1f2937;
+  margin-bottom: 8px;
 }
-:deep(.el-input__wrapper) {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
+
+.brand-subtitle {
+  font-size: 14px;
+  color: #6b7280;
 }
-.primary-btn {
+
+/* Card */
+.card {
+  position: relative;
   width: 100%;
-  margin-top: 4px;
-  background: linear-gradient(135deg, #4e6cff, #38e0ff);
-  border: none;
-  color: #05060c;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  box-shadow: 0 12px 30px rgba(78, 108, 255, 0.35);
+  background: transparent;
+  padding: 3px;
+  border-radius: 20px;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+  overflow: hidden;
 }
-.primary-btn:hover {
-  filter: brightness(1.05);
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(
+    transparent, 
+    transparent, 
+    transparent, 
+    transparent,
+    transparent,
+    transparent,
+    #0ea5e9, 
+    transparent
+  );
+  animation: rotate-border 17s linear infinite;
+  z-index: 0;
 }
-.switch {
-  margin-top: 12px;
-  color: #cfd9ff;
+
+.card::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 18px;
+  z-index: 0;
+  backdrop-filter: blur(12px);
+}
+
+/* 确保表单内容在遮罩之上 */
+.form {
+  position: relative;
+  z-index: 1;
+  padding: 32px;
+}
+
+:deep(.el-form-item__label) {
+  color: #4b5563;
   font-size: 13px;
+  padding-bottom: 4px;
+}
+
+:deep(.el-input__wrapper) {
+  background: #f9fafb;
+  box-shadow: 0 0 0 1px #e5e7eb inset !important;
+  border-radius: 12px;
+  padding: 4px 11px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+:deep(.el-input__prefix .el-icon) {
+  color: #69A4FF;
+}
+
+:deep(.el-input__wrapper.is-focus) {
+  background: #fff;
+  box-shadow: 0 0 0 1px #3b82f6 inset !important;
+}
+
+:deep(.el-input__wrapper.is-focus)::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #00B6DE, #961EFB, transparent);
+  background-size: 200% 100%;
+  animation: flow-line 2s linear infinite;
+}
+
+:deep(.el-input__inner) {
+  color: #1f2937;
+  height: 40px;
+}
+
+.submit-btn {
+  width: 100%;
+  height: 48px;
+  background: linear-gradient(90deg, #00B6DE, #961EFB);
+  border: none;
+  font-weight: 600;
+  font-size: 15px;
+  box-shadow: 0 4px 12px rgba(0, 182, 222, 0.25);
+  transition: all 0.3s;
+  margin-top: 12px;
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.submit-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  transform: skewX(-20deg);
+  transition: none;
+  z-index: -1;
+}
+
+.submit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.35);
+}
+
+.submit-btn:hover::before {
+  animation: shine 0.75s;
+}
+
+.submit-btn:active {
+  transform: scale(0.98);
+}
+
+.switch {
+  margin-top: 24px;
   text-align: center;
+  font-size: 13px;
+  color: #6b7280;
 }
-.footer {
-  display: flex;
-  gap: 8px;
-  margin-top: 18px;
-  flex-wrap: wrap;
-}
-.tag {
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #cdd6f4;
+
+.footer-text {
+  margin-top: 32px;
   font-size: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #9ca3af;
+}
+
+.mr-2 {
+  margin-right: 6px;
+}
+
+@keyframes rotate-border {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes flow-line {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes shine {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+
+@keyframes float-bg {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(20px, 20px); }
 }
 </style>
