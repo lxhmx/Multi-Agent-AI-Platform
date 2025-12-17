@@ -1,5 +1,6 @@
 """
-Authentication API: register, login, refresh, me.
+认证 API 模块
+提供注册、登录、刷新令牌、获取当前用户等接口
 """
 from datetime import timedelta
 
@@ -24,22 +25,24 @@ from config import (
 from common.dependencies import get_current_user
 
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
+router = APIRouter(prefix="/auth", tags=["认证"])
 
 
 @router.post("/register", response_model=UserPublic)
 def register(body: RegisterRequest):
+    """用户注册"""
     if user_repo.get_by_username(body.username):
-        raise HTTPException(status_code=400, detail="Username exists")
+        raise HTTPException(status_code=400, detail="用户名已存在")
     user_id = user_repo.create_user(body.username, body.email, hash_password(body.password))
     return UserPublic(id=user_id, username=body.username, email=body.email)
 
 
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest):
+    """用户登录"""
     user = user_repo.get_by_username(body.username)
     if not user or not verify_password(body.password, user["password_hash"]):
-        raise HTTPException(status_code=400, detail="Invalid credentials")
+        raise HTTPException(status_code=400, detail="用户名或密码错误")
     access = create_token(
         {"sub": str(user["id"]), "type": "access"},
         timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
@@ -61,13 +64,14 @@ def login(body: LoginRequest):
 
 @router.post("/refresh", response_model=TokenResponse)
 def refresh(body: RefreshRequest):
+    """刷新访问令牌"""
     try:
         payload = decode_token(body.refresh_token, SECRET_KEY, ALGORITHM)
         if payload.get("type") != "refresh":
-            raise HTTPException(status_code=400, detail="Not a refresh token")
+            raise HTTPException(status_code=400, detail="不是有效的刷新令牌")
         user_id = int(payload.get("sub"))
     except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
+        raise HTTPException(status_code=401, detail="无效的刷新令牌")
 
     access = create_token(
         {"sub": str(user_id), "type": "access"},
@@ -90,4 +94,5 @@ def refresh(body: RefreshRequest):
 
 @router.get("/me", response_model=UserPublic)
 def me(user=Depends(get_current_user)):
+    """获取当前登录用户信息"""
     return UserPublic(id=user["id"], username=user["username"], email=user.get("email"))

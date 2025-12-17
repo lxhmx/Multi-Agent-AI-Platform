@@ -15,7 +15,7 @@ import mysql.connector
 
 def get_mysql_connection():
     """获取 MySQL 数据库连接"""
-    # Handle both 'host:port' format and separate 'port' key
+    # 处理 'host:port' 格式和单独的 'port' 配置
     host = DB_CONFIG['host']
     if ':' in host:
         host_port = host.split(':')
@@ -34,5 +34,5 @@ def get_mysql_connection():
     )
 
 
-# Alias for repository layer
+# 为数据访问层提供别名
 get_connection = get_mysql_connection

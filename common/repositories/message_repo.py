@@ -1,10 +1,13 @@
-"""Message repository for chat history management."""
+"""
+消息数据访问模块
+提供聊天消息相关的数据库操作
+"""
 from typing import Optional, List, Tuple
 from common.conn_mysql import get_connection
 
 
 def create_message(session_id: str, role: str, content: str) -> dict:
-    """Create a new message in a session."""
+    """在会话中创建新消息"""
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
@@ -17,7 +20,7 @@ def create_message(session_id: str, role: str, content: str) -> dict:
             )
             message_id = cursor.lastrowid
             
-            # Update session's updated_at
+            # 更新会话的更新时间
             cursor.execute(
                 "UPDATE chat_sessions SET updated_at = NOW() WHERE id = %s",
                 (session_id,)
@@ -44,7 +47,7 @@ def create_message(session_id: str, role: str, content: str) -> dict:
 
 
 def get_messages_by_session(session_id: str, limit: int = 100, offset: int = 0) -> List[dict]:
-    """Get messages for a session, ordered by created_at asc."""
+    """获取会话的消息列表，按创建时间升序排列"""
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
@@ -74,7 +77,7 @@ def get_messages_by_session(session_id: str, limit: int = 100, offset: int = 0) 
 
 
 def get_message_count(session_id: str) -> int:
-    """Get the number of messages in a session."""
+    """获取会话中的消息数量"""
     conn = get_connection()
     try:
         with conn.cursor() as cursor:

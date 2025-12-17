@@ -27,6 +27,7 @@ from api.data_manage_api import router as data_manage_router
 from api.upload_api import router as upload_router
 from api.train_api import router as train_router
 from api.session_api import router as session_router
+from api.agent_router import router as agent_router
 
 
 @asynccontextmanager
@@ -61,11 +62,12 @@ app.add_middleware(
 
 # 注册所有路由
 app.include_router(auth_router)          # 鉴权接口
-app.include_router(ask_router)           # 问答接口
+app.include_router(ask_router)           # 问答接口（保留向后兼容）
 app.include_router(data_manage_router)   # 数据管理接口
 app.include_router(upload_router)        # 上传接口
 app.include_router(train_router)         # 训练接口
 app.include_router(session_router)       # 会话管理接口
+app.include_router(agent_router)         # 智能体统一入口（新）
 
 
 # ==================== 健康检查 ====================
@@ -94,6 +96,9 @@ if __name__ == '__main__':
     print("    POST /api/query             - 自然语言查询")
     print("    POST /api/query-stream      - 流式查询")
     print("    POST /api/query-agent       - Agent 模式查询（真正流式）")
+    print("\n  智能体接口（新）:")
+    print("    POST /api/agent/chat        - 智能体对话（支持自动路由）")
+    print("    GET  /api/agent/list        - 列出所有智能体")
     print("\n  其他:")
     print("    GET  /api/health            - 健康检查")
     print("\n" + "=" * 60)

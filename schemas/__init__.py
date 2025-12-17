@@ -1,1 +1,4 @@
-# Schemas package
+"""
+数据模型模块
+提供 Pydantic 请求/响应模型定义
+"""

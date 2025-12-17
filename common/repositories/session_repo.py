@@ -1,4 +1,7 @@
-"""Session repository for chat history management."""
+"""
+会话数据访问模块
+提供聊天会话相关的数据库操作
+"""
 import uuid
 from datetime import datetime
 from typing import Optional, List, Tuple
@@ -6,7 +9,7 @@ from common.conn_mysql import get_connection
 
 
 def create_session(user_id: int, title: Optional[str] = None) -> dict:
-    """Create a new chat session."""
+    """创建新的聊天会话"""
     session_id = str(uuid.uuid4())
     conn = get_connection()
     try:
@@ -41,19 +44,19 @@ def create_session(user_id: int, title: Optional[str] = None) -> dict:
 
 
 def get_sessions_by_user(user_id: int, page: int = 1, page_size: int = 20) -> Tuple[List[dict], int]:
-    """Get paginated sessions for a user, ordered by updated_at desc."""
+    """获取用户的会话列表（分页），按更新时间倒序排列"""
     offset = (page - 1) * page_size
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
-            # Get total count
+            # 获取总数
             cursor.execute(
                 "SELECT COUNT(*) FROM chat_sessions WHERE user_id = %s",
                 (user_id,)
             )
             total = cursor.fetchone()[0]
             
-            # Get sessions with message count
+            # 获取会话列表（包含消息数量）
             cursor.execute(
                 """
                 SELECT s.id, s.user_id, s.title, s.created_at, s.updated_at,
@@ -85,7 +88,7 @@ def get_sessions_by_user(user_id: int, page: int = 1, page_size: int = 20) -> Tu
 
 
 def get_session_by_id(session_id: str) -> Optional[dict]:
-    """Get a single session by ID."""
+    """根据 ID 获取单个会话"""
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
@@ -116,7 +119,7 @@ def get_session_by_id(session_id: str) -> Optional[dict]:
 
 
 def update_session_title(session_id: str, title: str) -> bool:
-    """Update session title."""
+    """更新会话标题"""
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
@@ -134,7 +137,7 @@ def update_session_title(session_id: str, title: str) -> bool:
 
 
 def delete_session(session_id: str) -> bool:
-    """Delete a session and all its messages (cascade)."""
+    """删除会话及其所有消息（级联删除）"""
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
@@ -149,7 +152,7 @@ def delete_session(session_id: str) -> bool:
 
 
 def session_belongs_to_user(session_id: str, user_id: int) -> bool:
-    """Check if a session belongs to a specific user."""
+    """检查会话是否属于指定用户"""
     conn = get_connection()
     try:
         with conn.cursor() as cursor:

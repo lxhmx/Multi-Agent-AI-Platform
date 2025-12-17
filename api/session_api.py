@@ -1,4 +1,7 @@
-"""Session API endpoints for chat history management."""
+"""
+会话 API 模块
+提供聊天会话和消息的增删改查接口
+"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Optional
 
@@ -9,7 +12,7 @@ from schemas.session import (
 from common.repositories import session_repo, message_repo
 from common.dependencies import get_current_user
 
-router = APIRouter(prefix="/api/sessions", tags=["sessions"])
+router = APIRouter(prefix="/api/sessions", tags=["会话管理"])
 
 
 @router.get("", response_model=SessionListResponse)
@@ -18,7 +21,7 @@ async def get_sessions(
     page_size: int = 20,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get paginated session list for current user."""
+    """获取当前用户的会话列表（分页）"""
     sessions, total = session_repo.get_sessions_by_user(
         current_user["id"], page, page_size
     )
@@ -35,7 +38,7 @@ async def create_session(
     data: SessionCreate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Create a new chat session."""
+    """创建新的聊天会话"""
     session = session_repo.create_session(current_user["id"], data.title)
     return SessionResponse(**session)
 
@@ -45,13 +48,13 @@ async def get_session_detail(
     session_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get session detail with messages."""
+    """获取会话详情（包含消息列表）"""
     session = session_repo.get_session_by_id(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail="会话不存在")
     
     if session["user_id"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Not authorized to access this session")
+        raise HTTPException(status_code=403, detail="无权访问此会话")
     
     messages = message_repo.get_messages_by_session(session_id)
     return SessionDetailResponse(
@@ -66,13 +69,13 @@ async def update_session(
     data: SessionUpdate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Update session title."""
+    """更新会话标题"""
     session = session_repo.get_session_by_id(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail="会话不存在")
     
     if session["user_id"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Not authorized to access this session")
+        raise HTTPException(status_code=403, detail="无权访问此会话")
     
     session_repo.update_session_title(session_id, data.title)
     updated_session = session_repo.get_session_by_id(session_id)
@@ -84,13 +87,13 @@ async def delete_session(
     session_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    """Delete a session and all its messages."""
+    """删除会话及其所有消息"""
     session = session_repo.get_session_by_id(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail="会话不存在")
     
     if session["user_id"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Not authorized to access this session")
+        raise HTTPException(status_code=403, detail="无权访问此会话")
     
     session_repo.delete_session(session_id)
     return None
@@ -102,15 +105,15 @@ async def add_message(
     data: MessageCreate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Add a message to a session."""
+    """向会话中添加消息"""
     session = session_repo.get_session_by_id(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail="会话不存在")
     
     if session["user_id"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Not authorized to access this session")
+        raise HTTPException(status_code=403, detail="无权访问此会话")
     
-    # Auto-generate title from first user message if no title set
+    # 如果会话没有标题，自动从第一条用户消息生成标题
     if not session["title"] and data.role == "user":
         title = data.content[:50] if len(data.content) > 50 else data.content
         session_repo.update_session_title(session_id, title)

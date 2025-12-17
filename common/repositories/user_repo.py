@@ -1,10 +1,12 @@
 """
-User repository for MySQL.
+用户数据访问模块
+提供用户相关的数据库操作
 """
 from common.conn_mysql import get_mysql_connection
 
 
 def get_by_id(user_id: int):
+    """根据用户 ID 获取用户信息"""
     conn = get_mysql_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM users WHERE id=%s", (user_id,))
@@ -15,6 +17,7 @@ def get_by_id(user_id: int):
 
 
 def get_by_username(username: str):
+    """根据用户名获取用户信息"""
     conn = get_mysql_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM users WHERE username=%s", (username,))
@@ -25,6 +28,7 @@ def get_by_username(username: str):
 
 
 def create_user(username: str, email: str | None, password_hash: str):
+    """创建新用户"""
     conn = get_mysql_connection()
     cur = conn.cursor()
     cur.execute(
