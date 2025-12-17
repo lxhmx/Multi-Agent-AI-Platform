@@ -29,6 +29,7 @@ ENV/
 # PyCharm / VS Code
 .idea/
 .vscode/
+.kiro/
 
 # Node.js / Vue
 node_modules/

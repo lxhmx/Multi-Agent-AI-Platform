@@ -491,7 +491,10 @@ CREATE TABLE orders (
 .page-title {
   font-size: 24px;
   font-weight: 600;
-  color: #7c3aed;
+  background: linear-gradient(90deg, #00d4ff 0%, #5b8def 50%, #a855f7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin-bottom: 8px;
 }
 
@@ -531,7 +534,7 @@ CREATE TABLE orders (
     }
     
     &.active {
-      background: linear-gradient(135deg, #7c3aed 0%, #10b981 100%);
+      background: linear-gradient(90deg, #00d4ff 0%, #5b8def 50%, #a855f7 100%);
       color: #fff;
       border-color: transparent;
     }
@@ -558,7 +561,7 @@ CREATE TABLE orders (
     
     .upload-icon {
       font-size: 48px;
-      color: #7c3aed;
+      color: #5b8def;
       margin-bottom: 16px;
     }
     
@@ -575,7 +578,7 @@ CREATE TABLE orders (
     }
     
     .upload-btn {
-      background: linear-gradient(135deg, #7c3aed 0%, #10b981 100%);
+      background: linear-gradient(90deg, #00d4ff 0%, #5b8def 50%, #a855f7 100%);
       border: none;
     }
   }
@@ -601,9 +604,9 @@ CREATE TABLE orders (
     
     &:hover {
       background: #fff;
-      border-color: #7c3aed;
+      border-color: #5b8def;
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
+      box-shadow: 0 4px 12px rgba(88, 141, 239, 0.2);
       
       .train-arrow {
         opacity: 1;
@@ -648,7 +651,7 @@ CREATE TABLE orders (
     }
     
     .train-arrow {
-      color: #7c3aed;
+      color: #5b8def;
       opacity: 0;
       transform: translateX(-10px);
       transition: all 0.3s;
@@ -705,15 +708,15 @@ CREATE TABLE orders (
       flex-shrink: 0;
       
       &.question-sql {
-        background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+        background: linear-gradient(135deg, #00d4ff 0%, #5b8def 100%);
       }
       
       &.ddl {
-        background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+        background: linear-gradient(135deg, #5b8def 0%, #a855f7 100%);
       }
       
       &.doc {
-        background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+        background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
       }
     }
     
@@ -740,7 +743,7 @@ CREATE TABLE orders (
     }
     
     .card-check {
-      color: #7c3aed;
+      color: #5b8def;
       font-size: 18px;
     }
   }
@@ -765,7 +768,7 @@ CREATE TABLE orders (
     border-bottom: 1px solid #eee;
     
     .el-icon {
-      color: #7c3aed;
+      color: #5b8def;
     }
     
     .help-icon {
@@ -775,7 +778,7 @@ CREATE TABLE orders (
       margin-left: auto;
       
       &:hover {
-        color: #7c3aed;
+        color: #5b8def;
       }
     }
   }
@@ -799,13 +802,13 @@ CREATE TABLE orders (
         width: 24px;
         height: 24px;
         border-radius: 6px;
-        background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+        background: linear-gradient(135deg, #00d4ff 0%, #5b8def 100%);
         color: #fff;
         font-size: 12px;
         font-weight: 700;
         
         &.sql {
-          background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+          background: linear-gradient(135deg, #5b8def 0%, #a855f7 100%);
           font-size: 10px;
         }
       }
@@ -845,15 +848,15 @@ CREATE TABLE orders (
     .example-tag {
       display: inline-block;
       padding: 6px 12px;
-      background: #f5f3ff;
-      color: #7c3aed;
+      background: rgba(88, 141, 239, 0.1);
+      color: #5b8def;
       border-radius: 16px;
       font-size: 12px;
       cursor: pointer;
       transition: all 0.2s ease;
       
       &:hover {
-        background: #7c3aed;
+        background: linear-gradient(90deg, #00d4ff 0%, #a855f7 100%);
         color: #fff;
       }
     }
@@ -861,14 +864,27 @@ CREATE TABLE orders (
   
   .submit-btn {
     width: 100%;
-    height: 48px;
+    height: 52px;
     font-size: 16px;
-    background: linear-gradient(135deg, #7c3aed 0%, #10b981 100%);
+    font-weight: 600;
+    background: linear-gradient(90deg, #00d4ff 0%, #5b8def 50%, #a855f7 100%);
     border: none;
+    border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    box-shadow: 0 8px 24px rgba(88, 141, 239, 0.35);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    
+    &:hover:not(:disabled) {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 12px 28px rgba(88, 141, 239, 0.5);
+    }
+    
+    &:active:not(:disabled) {
+      transform: translateY(0) scale(0.98);
+    }
     
     &:disabled {
       opacity: 0.6;

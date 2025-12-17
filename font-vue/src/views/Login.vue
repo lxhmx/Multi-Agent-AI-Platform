@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Lock, Message, Cpu, Lightning, View, Hide } from '@element-plus/icons-vue'
+import { Lock, Message, Cpu, Lightning, View, Hide, Loading } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const loading = ref(false)
@@ -105,17 +105,20 @@ const doLogin = async () => {
             <el-link type="primary" :underline="false">忘记密码?</el-link>
           </div>
 
-          <el-button
+          <button
             class="login-btn fade-drop stagger-6"
-            type="primary"
-            size="large"
-            round
-            :loading="loading"
+            :class="{ 'is-loading': loading }"
+            :disabled="loading"
             @click="doLogin"
           >
-            <el-icon class="mr-2"><Lightning /></el-icon>
-            登录
-          </el-button>
+            <!-- 按钮流光效果 -->
+            <div class="btn-shine"></div>
+            <span class="btn-content">
+              <el-icon v-if="loading" class="spin-icon"><Lightning /></el-icon>
+              <el-icon v-else><Lightning /></el-icon>
+              <span>{{ loading ? '正在登录...' : '登录' }}</span>
+            </span>
+          </button>
 
           <div class="divider fade-drop stagger-7">
             <span>或使用其他方式登录</span>
@@ -356,52 +359,82 @@ const doLogin = async () => {
   margin: 8px 0 24px;
 }
 
-/* 动效：按钮扫光效果 */
+/* 登录按钮 */
 .login-btn {
-  width: 100%;
-  height: 48px;
-  /* 按钮渐变 - 调整为 Cyan 到 Purple */
-  background: linear-gradient(90deg, #00C6FB, #7C2BFF);
-  border: none;
-  font-weight: 600;
-  font-size: 15px;
-  box-shadow: 0 4px 12px rgba(0, 198, 251, 0.25);
-  transition: all 0.3s;
   position: relative;
-  overflow: hidden;
-  z-index: 1;
-}
-
-.login-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
   width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.4),
-    transparent
-  );
-  transform: skewX(-20deg);
-  transition: none;
-  z-index: -1;
+  height: 52px;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #00d4ff 0%, #5b8def 50%, #a855f7 100%);
+  box-shadow: 0 8px 24px rgba(88, 141, 239, 0.35);
+  color: #fff;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  
+  &:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 12px 28px rgba(88, 141, 239, 0.5);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+  }
+  
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  
+  /* 按钮流光效果 */
+  .btn-shine {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.25) 50%,
+      transparent 100%
+    );
+    transform: translateX(-100%);
+    animation: btn-shine-sweep 3s ease-in-out infinite;
+    animation-delay: 1s;
+  }
+  
+  .btn-content {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    z-index: 1;
+  }
+  
+  /* 加载旋转动画 */
+  .spin-icon {
+    animation: spin-rotate 1s linear infinite;
+  }
 }
 
-.login-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.35);
+@keyframes btn-shine-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  50%, 100% {
+    transform: translateX(100%);
+  }
 }
 
-/* 按钮 hover 时触发扫光动画 */
-.login-btn:hover::before {
-  animation: shine 0.75s;
-}
-
-.login-btn:active {
-  transform: scale(0.98);
+@keyframes spin-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .divider {

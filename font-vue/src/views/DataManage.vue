@@ -90,8 +90,8 @@ const pieOption = computed(() => ({
     avoidLabelOverlap: false,
     label: { show: false },
     data: [
-      { value: stats.value.sql_count, name: 'SQL文件', itemStyle: { color: '#a855f7' } },
-      { value: stats.value.doc_count, name: '文档文件', itemStyle: { color: '#10b981' } }
+      { value: stats.value.sql_count, name: 'SQL文件', itemStyle: { color: '#5b8def' } },
+      { value: stats.value.doc_count, name: '文档文件', itemStyle: { color: '#a855f7' } }
     ]
   }]
 }))
@@ -113,8 +113,8 @@ const barOption = computed(() => ({
         type: 'linear',
         x: 0, y: 0, x2: 0, y2: 1,
         colorStops: [
-          { offset: 0, color: '#7c3aed' },
-          { offset: 1, color: '#10b981' }
+          { offset: 0, color: '#00d4ff' },
+          { offset: 1, color: '#a855f7' }
         ]
       },
       borderRadius: [4, 4, 0, 0]
@@ -238,7 +238,6 @@ onMounted(() => {
 <template>
   <div class="data-manage-page">
     <h1 class="page-title">训练数据管理</h1>
-    <p class="page-subtitle">查看、筛选和管理已上传的训练数据</p>
     
     <!-- 统计卡片 -->
     <div class="stats-row">
@@ -433,18 +432,22 @@ onMounted(() => {
 <style lang="scss" scoped>
 .data-manage-page {
   max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
 }
 
 .page-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: #7c3aed;
+  font-size: 26px;
+  font-weight: 700;
+  background: linear-gradient(90deg, #00d4ff 0%, #5b8def 50%, #a855f7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin-bottom: 8px;
+  letter-spacing: -0.5px;
 }
 
-.page-subtitle {
-  font-size: 14px;
-  color: #666;
+.page-title {
   margin-bottom: 24px;
 }
 
@@ -457,8 +460,14 @@ onMounted(() => {
 .stats-card {
   background: #fff;
   border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(88, 141, 239, 0.08);
+  border: 1px solid rgba(88, 141, 239, 0.06);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    box-shadow: 0 8px 30px rgba(88, 141, 239, 0.12);
+  }
   
   &.overview {
     flex: 1;
@@ -472,9 +481,14 @@ onMounted(() => {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 14px;
-    color: #666;
-    margin-bottom: 16px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #4b5563;
+    margin-bottom: 20px;
+    
+    .el-icon {
+      color: #5b8def;
+    }
   }
   
   .stats-items {
@@ -496,10 +510,10 @@ onMounted(() => {
         margin: 0 auto 10px;
         font-size: 20px;
         
-        &.sql { background: #f3e8ff; color: #a855f7; }
-        &.doc { background: #d1fae5; color: #10b981; }
-        &.success { background: #dcfce7; color: #22c55e; }
-        &.pending { background: #fef3c7; color: #f59e0b; }
+        &.sql { background: linear-gradient(135deg, rgba(0, 212, 255, 0.15) 0%, rgba(91, 141, 239, 0.15) 100%); color: #5b8def; }
+        &.doc { background: linear-gradient(135deg, rgba(91, 141, 239, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%); color: #a855f7; }
+        &.success { background: rgba(34, 197, 94, 0.12); color: #22c55e; }
+        &.pending { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
       }
       
       .stat-value {
@@ -530,7 +544,7 @@ onMounted(() => {
     .total-value {
       font-size: 28px;
       font-weight: 700;
-      color: #7c3aed;
+      color: #5b8def;
       margin: 0 6px;
     }
     
@@ -544,23 +558,41 @@ onMounted(() => {
 .activity-card {
   background: #fff;
   border-radius: 16px;
-  padding: 20px;
+  padding: 24px;
   margin-bottom: 20px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 20px rgba(88, 141, 239, 0.08);
+  border: 1px solid rgba(88, 141, 239, 0.06);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    box-shadow: 0 8px 30px rgba(88, 141, 239, 0.12);
+  }
   
   .card-header {
-    font-size: 14px;
-    color: #7c3aed;
-    font-weight: 500;
+    font-size: 15px;
+    font-weight: 600;
+    color: #4b5563;
     margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    
+    &::before {
+      content: '';
+      width: 4px;
+      height: 16px;
+      background: linear-gradient(180deg, #00d4ff 0%, #a855f7 100%);
+      border-radius: 2px;
+    }
   }
 }
 
 .list-card {
   background: #fff;
   border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(88, 141, 239, 0.08);
+  border: 1px solid rgba(88, 141, 239, 0.06);
   
   .list-toolbar {
     display: flex;

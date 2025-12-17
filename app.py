@@ -26,6 +26,7 @@ from api.ask_api import router as ask_router
 from api.data_manage_api import router as data_manage_router
 from api.upload_api import router as upload_router
 from api.train_api import router as train_router
+from api.session_api import router as session_router
 
 
 @asynccontextmanager
@@ -64,6 +65,7 @@ app.include_router(ask_router)           # 问答接口
 app.include_router(data_manage_router)   # 数据管理接口
 app.include_router(upload_router)        # 上传接口
 app.include_router(train_router)         # 训练接口
+app.include_router(session_router)       # 会话管理接口
 
 
 # ==================== 健康检查 ====================

@@ -1,15 +1,41 @@
-// 全局样式
+// ========== 全局样式 - 清新简约风格 ==========
+
 :root {
-  --primary-color: #7c3aed;
-  --primary-gradient: linear-gradient(135deg, #7c3aed 0%, #10b981 100%);
-  --sidebar-bg: #fff;
-  --sidebar-width: 200px;
-  --header-height: 60px;
-  --bg-color: #f5f7fa;
-  --text-color: #333;
-  --text-secondary: #666;
-  --border-color: #ebeef5;
-  --card-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  // 主色调 - 青蓝紫渐变
+  --primary-cyan: #00d4ff;
+  --primary-blue: #5b8def;
+  --primary-purple: #a855f7;
+  --primary-gradient: linear-gradient(90deg, #00d4ff 0%, #5b8def 50%, #a855f7 100%);
+  
+  // 背景色
+  --bg-base: #f0f4ff;
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --bg-hover: rgba(88, 141, 239, 0.06);
+  
+  // 文字色
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  
+  // 边框色
+  --border-light: rgba(255, 255, 255, 0.8);
+  --border-default: #e5e7eb;
+  
+  // 阴影
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.1);
+  --shadow-primary: 0 6px 16px rgba(88, 141, 239, 0.35);
+  
+  // 圆角
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  
+  // 布局
+  --sidebar-width: 220px;
+  --topbar-height: 60px;
 }
 
 * {
@@ -19,77 +45,203 @@
 }
 
 body {
-  font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
-  background-color: var(--bg-color);
-  color: var(--text-color);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
   line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-// 自定义滚动条
+// ========== 自定义滚动条 ==========
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 ::-webkit-scrollbar-thumb {
-  background: #ddd;
+  background: rgba(88, 141, 239, 0.2);
   border-radius: 3px;
+  
+  &:hover {
+    background: rgba(88, 141, 239, 0.35);
+  }
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #ccc;
-}
-
-// 卡片样式
+// ========== 通用卡片样式 ==========
 .card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: var(--card-shadow);
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-md), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
   padding: 20px;
 }
 
-// 渐变按钮
+// ========== 渐变按钮 ==========
 .btn-gradient {
   background: var(--primary-gradient);
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 10px 24px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transform: skewX(-20deg);
+    transition: none;
+  }
   
   &:hover {
-    opacity: 0.9;
     transform: translateY(-1px);
+    box-shadow: var(--shadow-primary);
+    
+    &::before {
+      animation: shine 0.6s;
+    }
+  }
+  
+  &:active {
+    transform: scale(0.98);
   }
 }
 
-// 页面标题
+// ========== 页面标题 ==========
 .page-title {
   font-size: 24px;
-  font-weight: 600;
-  color: var(--primary-color);
+  font-weight: 700;
+  color: var(--text-primary);
   margin-bottom: 8px;
+  letter-spacing: -0.3px;
 }
 
 .page-subtitle {
   font-size: 14px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   margin-bottom: 24px;
 }
 
-// Element Plus 覆盖
+// ========== Element Plus 覆盖 ==========
+
+// 主按钮
 .el-button--primary {
   background: var(--primary-gradient) !important;
   border: none !important;
+  box-shadow: var(--shadow-primary);
+  
+  &:hover {
+    opacity: 0.95;
+    transform: translateY(-1px);
+  }
 }
 
+// 输入框
+.el-input__wrapper {
+  background: #f9fafb !important;
+  box-shadow: 0 0 0 1px #e5e7eb inset !important;
+  border-radius: var(--radius-md) !important;
+  transition: all 0.3s ease !important;
+  
+  &.is-focus {
+    background: #fff !important;
+    box-shadow: 0 0 0 1px var(--primary-blue) inset !important;
+  }
+}
+
+// 菜单
 .el-menu {
   border-right: none !important;
+  background: transparent !important;
 }
 
-.el-menu-item.is-active {
-  background: var(--primary-gradient) !important;
-  color: #fff !important;
-  border-radius: 8px;
+// 表格
+.el-table {
+  --el-table-border-color: #f0f0f0;
+  --el-table-header-bg-color: #fafbfc;
+  
+  th.el-table__cell {
+    background: linear-gradient(90deg, rgba(0, 212, 255, 0.03) 0%, rgba(168, 85, 247, 0.03) 100%) !important;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  
+  .el-table__row:hover > td {
+    background: var(--bg-hover) !important;
+  }
+}
+
+// 卡片
+.el-card {
+  border-radius: var(--radius-lg) !important;
+  border: 1px solid var(--border-light) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+// 对话框
+.el-dialog {
+  border-radius: var(--radius-xl) !important;
+  
+  .el-dialog__header {
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 16px;
+  }
+}
+
+// 消息提示
+.el-message {
+  border-radius: var(--radius-md) !important;
+  border: none !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+// 下拉菜单
+.el-dropdown-menu {
+  border-radius: var(--radius-md) !important;
+  border: 1px solid var(--border-default) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+// ========== 动画关键帧 ==========
+@keyframes shine {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+// ========== 工具类 ==========
+.text-gradient {
+  background: var(--primary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.glass-effect {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-light);
 }

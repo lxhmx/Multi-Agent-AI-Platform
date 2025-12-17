@@ -24,6 +24,12 @@ api.interceptors.response.use(
   (response: AxiosResponse) => response.data,
   (error) => {
     console.error('API Error:', error)
+    // 401 未授权，跳转到登录页
+    if (error.response?.status === 401) {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      window.location.href = '/login'
+    }
     return Promise.reject(error)
   }
 )
@@ -330,6 +336,64 @@ export const trainSql = (): Promise<TrainResult> => {
 // 训练文档
 export const trainDocument = (docTypes?: string[]): Promise<TrainResult> => {
   return api.post('/train-document', { doc_types: docTypes })
+}
+
+// ==================== 会话管理接口 ====================
+
+export interface Session {
+  id: string
+  title: string | null
+  created_at: string
+  updated_at: string
+  message_count: number
+}
+
+export interface SessionMessage {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  created_at: string
+}
+
+export interface SessionDetail extends Session {
+  messages: SessionMessage[]
+}
+
+export interface SessionListResponse {
+  sessions: Session[]
+  total: number
+  page: number
+  page_size: number
+}
+
+// 获取会话列表
+export const getSessions = (page = 1, pageSize = 20): Promise<SessionListResponse> => {
+  return api.get('/sessions', { params: { page, page_size: pageSize } })
+}
+
+// 创建新会话
+export const createSession = (title?: string): Promise<Session> => {
+  return api.post('/sessions', { title })
+}
+
+// 获取会话详情
+export const getSessionDetail = (id: string): Promise<SessionDetail> => {
+  return api.get(`/sessions/${id}`)
+}
+
+// 更新会话标题
+export const updateSessionTitle = (id: string, title: string): Promise<Session> => {
+  return api.put(`/sessions/${id}`, { title })
+}
+
+// 删除会话
+export const deleteSession = (id: string): Promise<void> => {
+  return api.delete(`/sessions/${id}`)
+}
+
+// 添加消息到会话
+export const addMessage = (sessionId: string, role: 'user' | 'assistant', content: string): Promise<SessionMessage> => {
+  return api.post(`/sessions/${sessionId}/messages`, { role, content })
 }
 
 export default api

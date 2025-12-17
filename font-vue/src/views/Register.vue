@@ -199,13 +199,13 @@ const doRegister = async () => {
 .logo-box {
   width: 56px;
   height: 56px;
-  background: linear-gradient(135deg, #00B6DE, #961EFB);
+  background: linear-gradient(135deg, #00d4ff, #a855f7);
   border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 16px;
-  box-shadow: 0 8px 16px rgba(0, 182, 222, 0.25);
+  box-shadow: 0 8px 16px rgba(88, 141, 239, 0.3);
   color: #fff;
   font-size: 28px;
   transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
@@ -214,7 +214,7 @@ const doRegister = async () => {
 
 .logo-box:hover {
   transform: scale(1.15) rotate(5deg);
-  box-shadow: 0 12px 24px rgba(0, 182, 222, 0.35);
+  box-shadow: 0 12px 24px rgba(88, 141, 239, 0.4);
 }
 
 .brand-title {
@@ -310,7 +310,7 @@ const doRegister = async () => {
   left: 0;
   width: 100%;
   height: 2px;
-  background: linear-gradient(90deg, transparent, #00B6DE, #961EFB, transparent);
+  background: linear-gradient(90deg, transparent, #00d4ff, #a855f7, transparent);
   background-size: 200% 100%;
   animation: flow-line 2s linear infinite;
 }
@@ -320,50 +320,61 @@ const doRegister = async () => {
   height: 40px;
 }
 
+/* 注册按钮 */
 .submit-btn {
-  width: 100%;
-  height: 48px;
-  background: linear-gradient(90deg, #00B6DE, #961EFB);
-  border: none;
-  font-weight: 600;
-  font-size: 15px;
-  box-shadow: 0 4px 12px rgba(0, 182, 222, 0.25);
-  transition: all 0.3s;
-  margin-top: 12px;
   position: relative;
-  overflow: hidden;
-  z-index: 1;
-}
-
-.submit-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
   width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.4),
-    transparent
-  );
-  transform: skewX(-20deg);
-  transition: none;
-  z-index: -1;
+  height: 52px;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #00d4ff 0%, #5b8def 50%, #a855f7 100%);
+  box-shadow: 0 8px 24px rgba(88, 141, 239, 0.35);
+  color: #fff;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  margin-top: 12px;
+  
+  &:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 12px 28px rgba(88, 141, 239, 0.5);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+  }
+  
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  
+  /* 按钮流光效果 */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.25) 50%,
+      transparent 100%
+    );
+    transform: translateX(-100%);
+    animation: btn-shine-sweep 3s ease-in-out infinite;
+    animation-delay: 1s;
+  }
 }
 
-.submit-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.35);
-}
-
-.submit-btn:hover::before {
-  animation: shine 0.75s;
-}
-
-.submit-btn:active {
-  transform: scale(0.98);
+@keyframes btn-shine-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  50%, 100% {
+    transform: translateX(100%);
+  }
 }
 
 .switch {

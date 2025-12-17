@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, nextTick, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { queryQuestionStream, queryAgentStream } from '@/api'
-import type { QueryResult } from '@/api'
+import { 
+  queryQuestionStream, queryAgentStream,
+  getSessions, createSession, getSessionDetail, 
+  updateSessionTitle, deleteSession, addMessage
+} from '@/api'
+import type { QueryResult, Session, SessionMessage } from '@/api'
+import SessionSidebar from '@/components/SessionSidebar.vue'
 
 interface Message {
   id: number
@@ -18,21 +23,13 @@ const inputText = ref('')
 const loading = ref(false)
 const chatContainer = ref<HTMLElement>()
 
-// 会话 ID（用于记忆功能，页面加载时生成唯一 ID）
-const sessionId = ref<string>(`session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
+// 会话管理状态
+const sessions = ref<Session[]>([])
+const currentSessionId = ref<string>('')
+const sidebarLoading = ref(false)
 
 // 模式切换：false = 普通模式（固定流程），true = Agent 模式（智能决策）
 const useAgentMode = ref<boolean>(true)
-
-// 初始化欢迎消息
-onMounted(() => {
-  messages.value.push({
-    id: Date.now(),
-    role: 'assistant',
-    content: '您好！我是智能知识库助手。我可以帮您查询数据、生成报表和回答问题。请问有什么可以帮助您的？',
-    time: formatTime(new Date())
-  })
-})
 
 // 格式化时间
 const formatTime = (date: Date) => {
@@ -48,18 +45,150 @@ const scrollToBottom = () => {
   })
 }
 
+// 加载会话列表
+const loadSessions = async () => {
+  sidebarLoading.value = true
+  try {
+    const response = await getSessions()
+    sessions.value = response.sessions
+  } catch (error) {
+    console.error('加载会话列表失败:', error)
+  } finally {
+    sidebarLoading.value = false
+  }
+}
+
+// 加载会话详情
+const loadSessionDetail = async (sessionId: string) => {
+  try {
+    const detail = await getSessionDetail(sessionId)
+    messages.value = detail.messages.map((m: SessionMessage) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      time: formatTime(new Date(m.created_at))
+    }))
+    scrollToBottom()
+  } catch (error) {
+    console.error('加载会话详情失败:', error)
+    ElMessage.error('加载会话失败')
+  }
+}
+
+// 选择会话
+const handleSelectSession = async (sessionId: string) => {
+  if (sessionId === currentSessionId.value) return
+  currentSessionId.value = sessionId
+  await loadSessionDetail(sessionId)
+}
+
+// 创建新会话
+const handleCreateSession = async () => {
+  try {
+    const session = await createSession()
+    sessions.value.unshift(session)
+    currentSessionId.value = session.id
+    messages.value = [{
+      id: Date.now(),
+      role: 'assistant',
+      content: '您好！我是智能知识库助手。我可以帮您查询数据、生成报表和回答问题。请问有什么可以帮助您的？',
+      time: formatTime(new Date())
+    }]
+  } catch (error) {
+    console.error('创建会话失败:', error)
+    ElMessage.error('创建会话失败')
+  }
+}
+
+// 重命名会话
+const handleRenameSession = async (sessionId: string, newTitle: string) => {
+  try {
+    await updateSessionTitle(sessionId, newTitle)
+    const session = sessions.value.find(s => s.id === sessionId)
+    if (session) {
+      session.title = newTitle
+    }
+    ElMessage.success('重命名成功')
+  } catch (error) {
+    console.error('重命名失败:', error)
+    ElMessage.error('重命名失败')
+  }
+}
+
+// 删除会话
+const handleDeleteSession = async (sessionId: string) => {
+  try {
+    await deleteSession(sessionId)
+    const index = sessions.value.findIndex(s => s.id === sessionId)
+    if (index !== -1) {
+      sessions.value.splice(index, 1)
+    }
+    
+    // 如果删除的是当前会话，自动创建新会话或切换到其他会话
+    if (sessionId === currentSessionId.value) {
+      if (sessions.value.length > 0) {
+        // 切换到第一个会话
+        currentSessionId.value = sessions.value[0].id
+        await loadSessionDetail(sessions.value[0].id)
+      } else {
+        // 没有会话了，创建新会话
+        await handleCreateSession()
+      }
+    }
+    
+    ElMessage.success('删除成功')
+  } catch (error) {
+    console.error('删除会话失败:', error)
+    ElMessage.error('删除失败')
+  }
+}
+
+// 初始化
+onMounted(async () => {
+  await loadSessions()
+  
+  // 如果有会话，加载第一个；否则创建新会话
+  if (sessions.value.length > 0) {
+    currentSessionId.value = sessions.value[0].id
+    await loadSessionDetail(sessions.value[0].id)
+  } else {
+    await handleCreateSession()
+  }
+})
+
+
 // 发送消息（SSE 流式模式）
 const sendMessage = async () => {
   const text = inputText.value.trim()
   if (!text || loading.value) return
   
   // 添加用户消息
-  messages.value.push({
+  const userMsg: Message = {
     id: Date.now(),
     role: 'user',
     content: text,
     time: formatTime(new Date())
-  })
+  }
+  messages.value.push(userMsg)
+  
+  // 保存用户消息到会话
+  if (currentSessionId.value) {
+    try {
+      await addMessage(currentSessionId.value, 'user', text)
+      // 更新会话列表中的时间
+      const session = sessions.value.find(s => s.id === currentSessionId.value)
+      if (session) {
+        session.updated_at = new Date().toISOString()
+        session.message_count++
+        // 如果没有标题，用第一条消息作为标题
+        if (!session.title) {
+          session.title = text.length > 50 ? text.substring(0, 50) : text
+        }
+      }
+    } catch (error) {
+      console.error('保存用户消息失败:', error)
+    }
+  }
   
   inputText.value = ''
   scrollToBottom()
@@ -78,6 +207,8 @@ const sendMessage = async () => {
   
   // 发送 SSE 请求
   loading.value = true
+  let fullContent = ''
+  
   try {
     if (useAgentMode.value) {
       // Agent 模式：智能决策，自动调用工具
@@ -86,13 +217,26 @@ const sendMessage = async () => {
           const msg = messages.value.find(m => m.id === assistantMsgId)
           if (msg) {
             msg.content += chunk
+            fullContent += chunk
             scrollToBottom()
           }
         },
-        onDone: () => {
+        onDone: async () => {
           const msg = messages.value.find(m => m.id === assistantMsgId)
           if (msg) {
             msg.isStreaming = false
+          }
+          // 保存助手消息到会话
+          if (currentSessionId.value && fullContent) {
+            try {
+              await addMessage(currentSessionId.value, 'assistant', fullContent)
+              const session = sessions.value.find(s => s.id === currentSessionId.value)
+              if (session) {
+                session.message_count++
+              }
+            } catch (error) {
+              console.error('保存助手消息失败:', error)
+            }
           }
           loading.value = false
           scrollToBottom()
@@ -106,7 +250,7 @@ const sendMessage = async () => {
           loading.value = false
           scrollToBottom()
         }
-      }, sessionId.value)
+      }, currentSessionId.value)
     } else {
       // 普通模式：固定流程，返回表格数据
       await queryQuestionStream(text, {
@@ -114,6 +258,7 @@ const sendMessage = async () => {
           const msg = messages.value.find(m => m.id === assistantMsgId)
           if (msg) {
             msg.content += chunk
+            fullContent += chunk
             scrollToBottom()
           }
         },
@@ -121,15 +266,26 @@ const sendMessage = async () => {
           const msg = messages.value.find(m => m.id === assistantMsgId)
           if (msg) {
             msg.data = { ...msg.data, table, success: true }
-            console.log('[Chat] 更新表格数据:', table)
             scrollToBottom()
           }
         },
-        onDone: (data) => {
+        onDone: async (data) => {
           const msg = messages.value.find(m => m.id === assistantMsgId)
           if (msg) {
             msg.isStreaming = false
             msg.data = { ...msg.data, row_count: data.row_count }
+          }
+          // 保存助手消息到会话
+          if (currentSessionId.value && fullContent) {
+            try {
+              await addMessage(currentSessionId.value, 'assistant', fullContent)
+              const session = sessions.value.find(s => s.id === currentSessionId.value)
+              if (session) {
+                session.message_count++
+              }
+            } catch (error) {
+              console.error('保存助手消息失败:', error)
+            }
           }
           loading.value = false
           scrollToBottom()
@@ -143,7 +299,7 @@ const sendMessage = async () => {
           loading.value = false
           scrollToBottom()
         }
-      }, sessionId.value)
+      }, currentSessionId.value)
     }
   } catch (error: any) {
     const msg = messages.value.find(m => m.id === assistantMsgId)
@@ -166,131 +322,145 @@ const handleKeydown = (e: KeyboardEvent) => {
 }
 </script>
 
+
 <template>
   <div class="chat-page">
-    <!-- 消息区域 -->
-    <div class="messages-area" ref="chatContainer">
-      <!-- 欢迎区域（无消息时显示） -->
-      <div v-if="messages.length <= 1" class="welcome-section">
-        <div class="welcome-icon">
-          <el-icon :size="48"><ChatDotRound /></el-icon>
+    <!-- 左侧会话侧边栏 -->
+    <SessionSidebar
+      :sessions="sessions"
+      :active-session-id="currentSessionId"
+      :loading="sidebarLoading"
+      @select="handleSelectSession"
+      @create="handleCreateSession"
+      @rename="handleRenameSession"
+      @delete="handleDeleteSession"
+    />
+    
+    <!-- 右侧聊天区域 -->
+    <div class="chat-area">
+      <!-- 消息区域 -->
+      <div class="messages-area" ref="chatContainer">
+        <!-- 欢迎区域（无消息时显示） -->
+        <div v-if="messages.length <= 1" class="welcome-section">
+          <div class="welcome-icon">
+            <el-icon :size="48"><ChatDotRound /></el-icon>
+          </div>
+          <h2 class="welcome-title">智能数据助手</h2>
+          <p class="welcome-desc">我可以帮您查询数据、分析报表、回答问题</p>
+          <div class="quick-actions">
+            <div class="quick-item" @click="inputText = '查询所有设备信息'">
+              <el-icon><Search /></el-icon>
+              <span>查询设备信息</span>
+            </div>
+            <div class="quick-item" @click="inputText = '统计各类型设备数量'">
+              <el-icon><DataAnalysis /></el-icon>
+              <span>统计设备数量</span>
+            </div>
+            <div class="quick-item" @click="inputText = '数据库有哪些表'">
+              <el-icon><Grid /></el-icon>
+              <span>查看数据库结构</span>
+            </div>
+          </div>
         </div>
-        <h2 class="welcome-title">智能数据助手</h2>
-        <p class="welcome-desc">我可以帮您查询数据、分析报表、回答问题</p>
-        <div class="quick-actions">
-          <div class="quick-item" @click="inputText = '查询所有设备信息'">
-            <el-icon><Search /></el-icon>
-            <span>查询设备信息</span>
-          </div>
-          <div class="quick-item" @click="inputText = '统计各类型设备数量'">
-            <el-icon><DataAnalysis /></el-icon>
-            <span>统计设备数量</span>
-          </div>
-          <div class="quick-item" @click="inputText = '数据库有哪些表'">
-            <el-icon><Grid /></el-icon>
-            <span>查看数据库结构</span>
+        
+        <!-- 消息列表 -->
+        <div v-else class="messages-list">
+          <div 
+            v-for="msg in messages" 
+            :key="msg.id" 
+            class="message-item"
+            :class="msg.role"
+          >
+            <div class="message-avatar">
+              <el-icon v-if="msg.role === 'assistant'" :size="18" color="#fff">
+                <ChatDotRound />
+              </el-icon>
+              <el-icon v-else :size="18" color="#fff">
+                <User />
+              </el-icon>
+            </div>
+            
+            <div class="message-content">
+              <div class="message-bubble" :class="{ streaming: msg.isStreaming }">
+                {{ msg.content }}<span v-if="msg.isStreaming" class="cursor">|</span>
+              </div>
+              
+              <!-- 如果有查询结果，显示表格 -->
+              <div v-if="msg.data?.table?.rows && msg.data.table.rows.length > 0" class="result-table">
+                <div class="table-header">
+                  <el-icon><Grid /></el-icon>
+                  <span>查询结果 ({{ msg.data.table.total || msg.data.row_count || msg.data.table.rows.length }} 条)</span>
+                </div>
+                <el-table 
+                  :data="msg.data.table.rows.slice(0, 10)" 
+                  size="small"
+                  max-height="300"
+                  stripe
+                >
+                  <el-table-column 
+                    v-for="col in msg.data.table.columns" 
+                    :key="col.field"
+                    :prop="col.field"
+                    :label="col.title"
+                    min-width="120"
+                    show-overflow-tooltip
+                  />
+                </el-table>
+                <div v-if="msg.data.table.total > 10 || msg.data.table.rows.length > 10" class="table-more">
+                  显示前 10 条，共 {{ msg.data.table.total || msg.data.table.rows.length }} 条数据
+                </div>
+              </div>
+              
+              <div class="message-time">{{ msg.time }}</div>
+            </div>
           </div>
         </div>
       </div>
       
-      <!-- 消息列表 -->
-      <div v-else class="messages-list">
-        <div 
-          v-for="msg in messages" 
-          :key="msg.id" 
-          class="message-item"
-          :class="msg.role"
-        >
-          <div class="message-avatar">
-            <el-icon v-if="msg.role === 'assistant'" :size="18" color="#fff">
-              <ChatDotRound />
-            </el-icon>
-            <el-icon v-else :size="18" color="#fff">
-              <User />
-            </el-icon>
+      <!-- 底部输入卡片 -->
+      <div class="input-card">
+        <div class="input-card-inner">
+          <!-- 输入框区域 -->
+          <div class="input-row">
+            <div class="input-field">
+              <el-icon class="input-icon"><EditPen /></el-icon>
+              <input
+                v-model="inputText"
+                type="text"
+                placeholder="输入您的问题，按 Enter 发送..."
+                :disabled="loading"
+                @keydown="handleKeydown"
+              />
+            </div>
+            <button 
+              class="send-button"
+              :class="{ loading: loading }"
+              :disabled="loading || !inputText.trim()"
+              @click="sendMessage"
+            >
+              <el-icon v-if="!loading"><Promotion /></el-icon>
+              <el-icon v-else class="is-loading"><Loading /></el-icon>
+            </button>
           </div>
           
-          <div class="message-content">
-            <div class="message-bubble" :class="{ streaming: msg.isStreaming }">
-              {{ msg.content }}<span v-if="msg.isStreaming" class="cursor">|</span>
-            </div>
-            
-            <!-- 如果有查询结果，显示表格 -->
-            <div v-if="msg.data?.table?.rows && msg.data.table.rows.length > 0" class="result-table">
-              <div class="table-header">
-                <el-icon><Grid /></el-icon>
-                <span>查询结果 ({{ msg.data.table.total || msg.data.row_count || msg.data.table.rows.length }} 条)</span>
+          <!-- 底部工具栏 -->
+          <div class="input-toolbar">
+            <div class="mode-toggle" @click="useAgentMode = !useAgentMode">
+              <div class="mode-indicator" :class="{ active: useAgentMode }">
+                <el-icon><MagicStick /></el-icon>
               </div>
-              <el-table 
-                :data="msg.data.table.rows.slice(0, 10)" 
-                size="small"
-                max-height="300"
-                stripe
+              <span class="mode-text">{{ useAgentMode ? 'Agent 智能模式' : '普通查询模式' }}</span>
+              <el-tooltip 
+                :content="useAgentMode ? 'AI 自动决定是否需要查询数据库' : '每次都执行数据库查询并返回表格'"
+                placement="top"
               >
-                <el-table-column 
-                  v-for="col in msg.data.table.columns" 
-                  :key="col.field"
-                  :prop="col.field"
-                  :label="col.title"
-                  min-width="120"
-                  show-overflow-tooltip
-                />
-              </el-table>
-              <div v-if="msg.data.table.total > 10 || msg.data.table.rows.length > 10" class="table-more">
-                显示前 10 条，共 {{ msg.data.table.total || msg.data.table.rows.length }} 条数据
-              </div>
+                <el-icon class="mode-help"><QuestionFilled /></el-icon>
+              </el-tooltip>
             </div>
-            
-            <div class="message-time">{{ msg.time }}</div>
-          </div>
-        </div>
-        
-      </div>
-    </div>
-    
-    <!-- 底部输入卡片 -->
-    <div class="input-card">
-      <div class="input-card-inner">
-        <!-- 输入框区域 -->
-        <div class="input-row">
-          <div class="input-field">
-            <el-icon class="input-icon"><EditPen /></el-icon>
-            <input
-              v-model="inputText"
-              type="text"
-              placeholder="输入您的问题，按 Enter 发送..."
-              :disabled="loading"
-              @keydown="handleKeydown"
-            />
-          </div>
-          <button 
-            class="send-button"
-            :class="{ loading: loading }"
-            :disabled="loading || !inputText.trim()"
-            @click="sendMessage"
-          >
-            <el-icon v-if="!loading"><Promotion /></el-icon>
-            <el-icon v-else class="is-loading"><Loading /></el-icon>
-          </button>
-        </div>
-        
-        <!-- 底部工具栏 -->
-        <div class="input-toolbar">
-          <div class="mode-toggle" @click="useAgentMode = !useAgentMode">
-            <div class="mode-indicator" :class="{ active: useAgentMode }">
-              <el-icon><MagicStick /></el-icon>
+            <div class="toolbar-hint">
+              <el-icon><InfoFilled /></el-icon>
+              <span>支持自然语言查询数据</span>
             </div>
-            <span class="mode-text">{{ useAgentMode ? 'Agent 智能模式' : '普通查询模式' }}</span>
-            <el-tooltip 
-              :content="useAgentMode ? 'AI 自动决定是否需要查询数据库' : '每次都执行数据库查询并返回表格'"
-              placement="top"
-            >
-              <el-icon class="mode-help"><QuestionFilled /></el-icon>
-            </el-tooltip>
-          </div>
-          <div class="toolbar-hint">
-            <el-icon><InfoFilled /></el-icon>
-            <span>支持自然语言查询数据</span>
           </div>
         </div>
       </div>
@@ -298,19 +468,29 @@ const handleKeydown = (e: KeyboardEvent) => {
   </div>
 </template>
 
+
 <style lang="scss" scoped>
 .chat-page {
-  height: calc(100vh - 48px);
+  height: 100%;
+  display: flex;
+  background: transparent;
+  overflow: hidden;
+}
+
+.chat-area {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(135deg, #f8f7ff 0%, #f0f9ff 50%, #f0fdf4 100%);
   position: relative;
+  min-width: 0;
+  overflow: hidden;
 }
 
 // ========== 消息区域 ==========
 .messages-area {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 24px 24px 140px;
   
   &::-webkit-scrollbar {
@@ -318,7 +498,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   }
   
   &::-webkit-scrollbar-thumb {
-    background: rgba(124, 58, 237, 0.2);
+    background: rgba(88, 141, 239, 0.2);
     border-radius: 3px;
   }
 }
@@ -343,19 +523,19 @@ const handleKeydown = (e: KeyboardEvent) => {
   width: 100px;
   height: 100px;
   border-radius: 28px;
-  background: linear-gradient(135deg, #7c3aed 0%, #10b981 100%);
+  background: linear-gradient(90deg, #00d4ff 0%, #5b8def 50%, #a855f7 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   margin-bottom: 24px;
-  box-shadow: 0 20px 40px rgba(124, 58, 237, 0.25);
+  box-shadow: 0 20px 40px rgba(88, 141, 239, 0.3);
 }
 
 .welcome-title {
   font-size: 28px;
   font-weight: 700;
-  background: linear-gradient(135deg, #7c3aed 0%, #10b981 100%);
+  background: linear-gradient(90deg, #00d4ff 0%, #5b8def 50%, #a855f7 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -390,13 +570,13 @@ const handleKeydown = (e: KeyboardEvent) => {
   border: 1px solid transparent;
   
   .el-icon {
-    color: #7c3aed;
+    color: #5b8def;
   }
   
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(124, 58, 237, 0.15);
-    border-color: rgba(124, 58, 237, 0.2);
+    box-shadow: 0 8px 24px rgba(88, 141, 239, 0.2);
+    border-color: rgba(88, 141, 239, 0.3);
   }
 }
 
@@ -437,7 +617,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   
   &.assistant {
     .message-avatar {
-      background: linear-gradient(135deg, #7c3aed 0%, #10b981 100%);
+      background: linear-gradient(90deg, #00d4ff 0%, #a855f7 100%);
     }
     
     .message-bubble {
@@ -479,7 +659,7 @@ const handleKeydown = (e: KeyboardEvent) => {
     .dot {
       width: 8px;
       height: 8px;
-      background: linear-gradient(135deg, #7c3aed 0%, #10b981 100%);
+      background: linear-gradient(90deg, #00d4ff 0%, #a855f7 100%);
       border-radius: 50%;
       animation: bounce 1.4s infinite ease-in-out both;
       
@@ -513,7 +693,7 @@ const handleKeydown = (e: KeyboardEvent) => {
     align-items: center;
     gap: 6px;
     padding: 10px 14px;
-    background: linear-gradient(135deg, #f8f7ff 0%, #f0fdf4 100%);
+    background: linear-gradient(90deg, rgba(0, 212, 255, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%);
     color: #666;
     font-size: 12px;
     font-weight: 500;
@@ -535,7 +715,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   left: 0;
   right: 0;
   padding: 16px 24px 24px;
-  background: linear-gradient(to top, rgba(248, 247, 255, 1) 0%, rgba(248, 247, 255, 0) 100%);
+  background: linear-gradient(to top, rgba(240, 244, 255, 1) 0%, rgba(240, 244, 255, 0) 100%);
 }
 
 .input-card-inner {
@@ -545,9 +725,9 @@ const handleKeydown = (e: KeyboardEvent) => {
   border-radius: 20px;
   padding: 16px 20px;
   box-shadow: 
-    0 4px 24px rgba(124, 58, 237, 0.1),
+    0 4px 24px rgba(88, 141, 239, 0.15),
     0 8px 48px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(124, 58, 237, 0.08);
+  border: 1px solid rgba(88, 141, 239, 0.1);
 }
 
 .input-row {
@@ -562,15 +742,15 @@ const handleKeydown = (e: KeyboardEvent) => {
   align-items: center;
   gap: 12px;
   padding: 0 16px;
-  background: #f8f7ff;
+  background: #f0f4ff;
   border-radius: 14px;
   border: 2px solid transparent;
   transition: all 0.3s ease;
   
   &:focus-within {
     background: #fff;
-    border-color: #7c3aed;
-    box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
+    border-color: #5b8def;
+    box-shadow: 0 0 0 4px rgba(88, 141, 239, 0.1);
   }
   
   .input-icon {
@@ -602,7 +782,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   height: 48px;
   border-radius: 14px;
   border: none;
-  background: linear-gradient(135deg, #7c3aed 0%, #10b981 100%);
+  background: linear-gradient(90deg, #00d4ff 0%, #5b8def 50%, #a855f7 100%);
   color: #fff;
   font-size: 20px;
   cursor: pointer;
@@ -613,7 +793,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   
   &:hover:not(:disabled) {
     transform: scale(1.05);
-    box-shadow: 0 8px 24px rgba(124, 58, 237, 0.35);
+    box-shadow: 0 8px 24px rgba(88, 141, 239, 0.4);
   }
   
   &:active:not(:disabled) {
@@ -649,7 +829,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   transition: all 0.2s ease;
   
   &:hover {
-    background: #f8f7ff;
+    background: rgba(88, 141, 239, 0.06);
   }
   
   .mode-indicator {
@@ -664,7 +844,7 @@ const handleKeydown = (e: KeyboardEvent) => {
     transition: all 0.3s ease;
     
     &.active {
-      background: linear-gradient(135deg, #7c3aed 0%, #10b981 100%);
+      background: linear-gradient(90deg, #00d4ff 0%, #a855f7 100%);
       color: #fff;
     }
   }
@@ -680,7 +860,7 @@ const handleKeydown = (e: KeyboardEvent) => {
     font-size: 14px;
     
     &:hover {
-      color: #7c3aed;
+      color: #5b8def;
     }
   }
 }
@@ -701,7 +881,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 .cursor {
   display: inline-block;
   animation: blink 1s infinite;
-  color: #7c3aed;
+  color: #5b8def;
   font-weight: bold;
 }
 
