@@ -21,7 +21,6 @@ class DataAnalystAgent(BaseAgent):
     数据分析智能体
     
     负责：
-    - 数据库查询（Text2SQL）
     - 数据统计分析
     - 设备实时数据查询
     """
