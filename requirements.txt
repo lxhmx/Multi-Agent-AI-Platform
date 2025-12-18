@@ -47,6 +47,7 @@ flask-socketio>=5.3.0  # WebSocket 支持（可选）
 
 # 其他依赖
 python-dotenv>=1.0.0
+email-validator>=2.0.0
 requests>=2.31.0
 
 # Testing
