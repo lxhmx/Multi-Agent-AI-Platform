@@ -27,7 +27,7 @@ class DataAnalystAgent(BaseAgent):
     """
     
     name = "data_analyst"
-    description = "数据分析助手，可以查询数据库、分析数据、获取设备实时信息"
+    description = "数据分析Agent，可以查询数据库、分析数据、获取设备实时信息"
     
     def __init__(self):
         self._agent = None

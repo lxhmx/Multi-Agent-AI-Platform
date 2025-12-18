@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { ref, nextTick, onMounted, watch } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { 
-  queryQuestionStream, queryAgentStream,
+  queryQuestionStream, queryAgentChatStream, getAgentList,
   getSessions, createSession, getSessionDetail, 
   updateSessionTitle, deleteSession, addMessage
 } from '@/api'
-import type { QueryResult, Session, SessionMessage } from '@/api'
+import type { QueryResult, Session, SessionMessage, AgentInfo } from '@/api'
 import SessionSidebar from '@/components/SessionSidebar.vue'
+
+const route = useRoute()
 
 interface Message {
   id: number
@@ -16,6 +19,7 @@ interface Message {
   time: string
   data?: Partial<QueryResult>
   isStreaming?: boolean
+  agentUsed?: string  // 记录使用的智能体
 }
 
 const messages = ref<Message[]>([])
@@ -28,8 +32,58 @@ const sessions = ref<Session[]>([])
 const currentSessionId = ref<string>('')
 const sidebarLoading = ref(false)
 
-// 模式切换：false = 普通模式（固定流程），true = Agent 模式（智能决策）
-const useAgentMode = ref<boolean>(true)
+// 智能体选择状态
+const agents = ref<AgentInfo[]>([])
+const selectedAgent = ref<string>('auto')  // 'auto' 表示智能模式（自动路由）
+const showAgentSelector = ref(false)
+
+// 智能体图标映射
+const agentIcons: Record<string, string> = {
+  'auto': 'MagicStick',
+  'data_analyst': 'DataAnalysis',
+}
+
+// 智能体颜色映射
+const agentColors: Record<string, string> = {
+  'auto': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  'data_analyst': 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+}
+
+// 当前选中的智能体信息
+const currentAgentInfo = computed(() => {
+  if (selectedAgent.value === 'auto') {
+    return { name: 'auto', description: '智能模式 - 自动选择最合适的智能体' }
+  }
+  return agents.value.find(a => a.name === selectedAgent.value) || { name: '', description: '' }
+})
+
+// 加载智能体列表
+const loadAgents = async () => {
+  try {
+    const response = await getAgentList()
+    agents.value = response.agents
+  } catch (error) {
+    console.error('加载智能体列表失败:', error)
+  }
+}
+
+// 选择智能体
+const selectAgent = (agentName: string) => {
+  selectedAgent.value = agentName
+  showAgentSelector.value = false
+}
+
+// 点击外部关闭下拉框
+const handleClickOutside = (e: MouseEvent) => {
+  const target = e.target as HTMLElement
+  if (!target.closest('.agent-selector')) {
+    showAgentSelector.value = false
+  }
+}
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 
 // 格式化时间
 const formatTime = (date: Date) => {
@@ -39,9 +93,11 @@ const formatTime = (date: Date) => {
 // 滚动到底部
 const scrollToBottom = () => {
   nextTick(() => {
-    if (chatContainer.value) {
-      chatContainer.value.scrollTop = chatContainer.value.scrollHeight
-    }
+    nextTick(() => {
+      if (chatContainer.value) {
+        chatContainer.value.scrollTop = chatContainer.value.scrollHeight
+      }
+    })
   })
 }
 
@@ -145,7 +201,17 @@ const handleDeleteSession = async (sessionId: string) => {
 
 // 初始化
 onMounted(async () => {
-  await loadSessions()
+  // 监听点击事件（用于关闭下拉框）
+  document.addEventListener('click', handleClickOutside)
+  
+  // 并行加载智能体列表和会话列表
+  await Promise.all([loadAgents(), loadSessions()])
+  
+  // 从 URL 参数读取智能体选择
+  const agentParam = route.query.agent as string
+  if (agentParam) {
+    selectedAgent.value = agentParam
+  }
   
   // 如果有会话，加载第一个；否则创建新会话
   if (sessions.value.length > 0) {
@@ -210,15 +276,22 @@ const sendMessage = async () => {
   let fullContent = ''
   
   try {
-    if (useAgentMode.value) {
-      // Agent 模式：智能决策，自动调用工具
-      await queryAgentStream(text, {
+    if (selectedAgent.value !== 'legacy') {
+      // 使用新的智能体 API（支持自动路由或指定智能体）
+      const agentName = selectedAgent.value === 'auto' ? undefined : selectedAgent.value
+      await queryAgentChatStream(text, {
         onAnswer: (chunk: string) => {
           const msg = messages.value.find(m => m.id === assistantMsgId)
           if (msg) {
             msg.content += chunk
             fullContent += chunk
             scrollToBottom()
+          }
+        },
+        onAgentUsed: (usedAgent: string) => {
+          const msg = messages.value.find(m => m.id === assistantMsgId)
+          if (msg) {
+            msg.agentUsed = usedAgent
           }
         },
         onDone: async () => {
@@ -250,7 +323,7 @@ const sendMessage = async () => {
           loading.value = false
           scrollToBottom()
         }
-      }, currentSessionId.value)
+      }, currentSessionId.value, agentName)
     } else {
       // 普通模式：固定流程，返回表格数据
       await queryQuestionStream(text, {
@@ -383,6 +456,11 @@ const handleKeydown = (e: KeyboardEvent) => {
             <div class="message-content">
               <div class="message-bubble" :class="{ streaming: msg.isStreaming }">
                 {{ msg.content }}<span v-if="msg.isStreaming" class="cursor">|</span>
+                <!-- 显示使用的智能体标签 -->
+                <div v-if="msg.role === 'assistant' && msg.agentUsed" class="agent-tag">
+                  <el-icon><Cpu /></el-icon>
+                  {{ agents.find(a => a.name === msg.agentUsed)?.description || msg.agentUsed }}
+                </div>
               </div>
               
               <!-- 如果有查询结果，显示表格 -->
@@ -445,18 +523,75 @@ const handleKeydown = (e: KeyboardEvent) => {
           
           <!-- 底部工具栏 -->
           <div class="input-toolbar">
-            <div class="mode-toggle" @click="useAgentMode = !useAgentMode">
-              <div class="mode-indicator" :class="{ active: useAgentMode }">
-                <el-icon><MagicStick /></el-icon>
+            <!-- 智能体选择器 -->
+            <div class="agent-selector">
+              <div class="agent-trigger" @click="showAgentSelector = !showAgentSelector">
+                <div class="agent-icon" :style="{ background: agentColors[selectedAgent] || agentColors['auto'] }">
+                  <el-icon v-if="selectedAgent === 'auto'"><MagicStick /></el-icon>
+                  <el-icon v-else><DataAnalysis /></el-icon>
+                </div>
+                <span class="agent-name">
+                  {{ selectedAgent === 'auto' ? '智能模式' : (agents.find(a => a.name === selectedAgent)?.description || selectedAgent) }}
+                </span>
+                <el-icon class="agent-arrow" :class="{ open: showAgentSelector }"><ArrowDown /></el-icon>
               </div>
-              <span class="mode-text">{{ useAgentMode ? 'Agent 智能模式' : '普通查询模式' }}</span>
-              <el-tooltip 
-                :content="useAgentMode ? 'AI 自动决定是否需要查询数据库' : '每次都执行数据库查询并返回表格'"
-                placement="top"
-              >
-                <el-icon class="mode-help"><QuestionFilled /></el-icon>
-              </el-tooltip>
+              
+              <!-- 智能体选择弹出层（九宫格样式） -->
+              <transition name="fade-slide">
+                <div v-if="showAgentSelector" class="agent-dropdown">
+                  <div class="agent-dropdown-header">
+                    <span class="agent-dropdown-title">选择智能体</span>
+                    <el-icon class="agent-dropdown-close" @click="showAgentSelector = false"><Close /></el-icon>
+                  </div>
+                  
+                  <div class="agent-grid">
+                    <!-- 智能模式卡片 -->
+                    <div 
+                      class="agent-grid-item"
+                      :class="{ active: selectedAgent === 'auto' }"
+                      @click="selectAgent('auto')"
+                    >
+                      <div class="agent-grid-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
+                        <el-icon :size="24"><MagicStick /></el-icon>
+                      </div>
+                      <div class="agent-grid-name">智能模式</div>
+                      <div class="agent-grid-desc">自动选择</div>
+                      <div v-if="selectedAgent === 'auto'" class="agent-grid-check">
+                        <el-icon><Select /></el-icon>
+                      </div>
+                    </div>
+                    
+                    <!-- 具体智能体卡片 -->
+                    <div 
+                      v-for="agent in agents" 
+                      :key="agent.name"
+                      class="agent-grid-item"
+                      :class="{ active: selectedAgent === agent.name }"
+                      @click="selectAgent(agent.name)"
+                    >
+                      <div class="agent-grid-icon" :style="{ background: agentColors[agent.name] || 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' }">
+                        <el-icon :size="24"><DataAnalysis /></el-icon>
+                      </div>
+                      <div class="agent-grid-name">{{ agent.description.split('，')[0] }}</div>
+                      <div class="agent-grid-desc">{{ agent.name }}</div>
+                      <div v-if="selectedAgent === agent.name" class="agent-grid-check">
+                        <el-icon><Select /></el-icon>
+                      </div>
+                    </div>
+                    
+                    <!-- 占位卡片（敬请期待） -->
+                    <div class="agent-grid-item placeholder">
+                      <div class="agent-grid-icon placeholder-icon">
+                        <el-icon :size="24"><Plus /></el-icon>
+                      </div>
+                      <div class="agent-grid-name">更多智能体</div>
+                      <div class="agent-grid-desc">敬请期待</div>
+                    </div>
+                  </div>
+                </div>
+              </transition>
             </div>
+            
             <div class="toolbar-hint">
               <el-icon><InfoFilled /></el-icon>
               <span>支持自然语言查询数据</span>
@@ -471,7 +606,11 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 <style lang="scss" scoped>
 .chat-page {
-  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   background: transparent;
   overflow: hidden;
@@ -481,17 +620,17 @@ const handleKeydown = (e: KeyboardEvent) => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  position: relative;
   min-width: 0;
-  overflow: hidden;
+  min-height: 0;
 }
 
 // ========== 消息区域 ==========
 .messages-area {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 24px 24px 140px;
+  padding: 24px;
   
   &::-webkit-scrollbar {
     width: 6px;
@@ -584,6 +723,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 .messages-list {
   max-width: 900px;
   margin: 0 auto;
+  padding-bottom: 30px;
 }
 
 .message-item {
@@ -680,6 +820,22 @@ const handleKeydown = (e: KeyboardEvent) => {
   margin-top: 6px;
 }
 
+.agent-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  background: rgba(88, 141, 239, 0.1);
+  border-radius: 12px;
+  font-size: 11px;
+  color: #5b8def;
+  
+  .el-icon {
+    font-size: 12px;
+  }
+}
+
 // ========== 结果表格 ==========
 .result-table {
   margin-top: 12px;
@@ -710,12 +866,9 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 // ========== 底部输入卡片 ==========
 .input-card {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  flex-shrink: 0;
   padding: 16px 24px 24px;
-  background: linear-gradient(to top, rgba(240, 244, 255, 1) 0%, rgba(240, 244, 255, 0) 100%);
+  background: transparent;
 }
 
 .input-card-inner {
@@ -819,50 +972,201 @@ const handleKeydown = (e: KeyboardEvent) => {
   border-top: 1px solid #f0f0f0;
 }
 
-.mode-toggle {
+// ========== 智能体选择器 ==========
+.agent-selector {
+  position: relative;
+}
+
+.agent-trigger {
   display: flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
   padding: 6px 12px;
-  border-radius: 8px;
+  border-radius: 10px;
   transition: all 0.2s ease;
   
   &:hover {
-    background: rgba(88, 141, 239, 0.06);
+    background: rgba(88, 141, 239, 0.08);
   }
   
-  .mode-indicator {
+  .agent-icon {
     width: 28px;
     height: 28px;
     border-radius: 8px;
-    background: #e5e7eb;
     display: flex;
     align-items: center;
     justify-content: center;
+    color: #fff;
+    font-size: 14px;
+  }
+  
+  .agent-name {
+    font-size: 13px;
+    color: #555;
+    font-weight: 500;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .agent-arrow {
     color: #999;
-    transition: all 0.3s ease;
+    font-size: 12px;
+    transition: transform 0.2s ease;
     
-    &.active {
-      background: linear-gradient(90deg, #00d4ff 0%, #a855f7 100%);
-      color: #fff;
+    &.open {
+      transform: rotate(180deg);
     }
   }
+}
+
+.agent-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 8px;
+  width: 380px;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 16px;
+  z-index: 100;
+}
+
+.agent-dropdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 16px;
+}
+
+.agent-dropdown-title {
+  font-size: 14px;
+  color: #333;
+  font-weight: 600;
+}
+
+.agent-dropdown-close {
+  color: #999;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
   
-  .mode-text {
-    font-size: 13px;
+  &:hover {
+    background: #f0f0f0;
     color: #666;
-    font-weight: 500;
+  }
+}
+
+// 九宫格布局
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.agent-grid-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 8px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+  background: #fafbfc;
+  position: relative;
+  
+  &:hover {
+    background: #f0f4ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(88, 141, 239, 0.15);
   }
   
-  .mode-help {
-    color: #bbb;
-    font-size: 14px;
+  &.active {
+    background: rgba(88, 141, 239, 0.1);
+    border-color: #5b8def;
     
-    &:hover {
+    .agent-grid-name {
       color: #5b8def;
     }
   }
+  
+  &.placeholder {
+    cursor: default;
+    opacity: 0.6;
+    
+    &:hover {
+      transform: none;
+      box-shadow: none;
+      background: #fafbfc;
+    }
+    
+    .placeholder-icon {
+      background: #e5e7eb;
+      border: 2px dashed #ccc;
+    }
+  }
+}
+
+.agent-grid-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.agent-grid-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  text-align: center;
+  margin-bottom: 2px;
+  line-height: 1.3;
+}
+
+.agent-grid-desc {
+  font-size: 11px;
+  color: #999;
+  text-align: center;
+}
+
+.agent-grid-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #5b8def;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+// 下拉动画
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.2s ease;
+}
+
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 
 .toolbar-hint {

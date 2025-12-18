@@ -13,6 +13,7 @@ onMounted(() => {
 })
 
 const menuItems = [
+  { path: '/agent-workbench', title: 'Agent工作台', icon: 'Cpu' },
   { path: '/chat', title: '智能问答', icon: 'ChatDotRound' },
   { path: '/training', title: '知识训练', icon: 'Upload' },
   { path: '/data-manage', title: '数据管理', icon: 'Document' }
@@ -434,6 +435,8 @@ const handleLogout = () => {
     0 4px 24px rgba(0, 0, 0, 0.06),
     0 0 0 1px rgba(255, 255, 255, 0.5) inset;
   overflow: hidden;
+  position: relative;
+  min-height: 0;
 }
 
 /* 下拉菜单样式 */

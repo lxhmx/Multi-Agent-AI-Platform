@@ -338,6 +338,97 @@ export const trainDocument = (docTypes?: string[]): Promise<TrainResult> => {
   return api.post('/train-document', { doc_types: docTypes })
 }
 
+// ==================== 智能体接口 ====================
+
+export interface AgentInfo {
+  name: string
+  description: string
+}
+
+// 获取智能体列表
+export const getAgentList = (): Promise<{ agents: AgentInfo[] }> => {
+  return api.get('/agent/list')
+}
+
+// 智能体对话（SSE 流式，支持指定智能体或自动路由）
+export const queryAgentChatStream = async (
+  question: string,
+  callbacks: AgentStreamCallbacks & { onAgentUsed?: (agentName: string) => void },
+  sessionId?: string,
+  agentName?: string  // 可选，不传则自动路由
+): Promise<void> => {
+  const token = localStorage.getItem('access_token')
+  const response = await fetch('/api/agent/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : '',
+    },
+    body: JSON.stringify({ 
+      question, 
+      session_id: sessionId,
+      agent_name: agentName || null  // null 表示自动路由
+    }),
+  })
+
+  if (!response.ok) {
+    callbacks.onError?.('请求失败')
+    return
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) {
+    callbacks.onError?.('无法读取响应流')
+    return
+  }
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    
+    const parts = buffer.split('\n\n')
+    buffer = parts.pop() || ''
+
+    for (const part of parts) {
+      const lines = part.split('\n')
+      let currentEvent = ''
+      let currentData = ''
+      
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim()
+        } else if (line.startsWith('data: ')) {
+          currentData = line.slice(6)
+        }
+      }
+      
+      if (currentEvent && currentData !== '') {
+        if (currentEvent === 'answer') {
+          callbacks.onAnswer?.(currentData)
+        } else if (currentEvent === 'done') {
+          try {
+            const doneData = JSON.parse(currentData)
+            callbacks.onAgentUsed?.(doneData.agent)
+          } catch (e) {}
+          callbacks.onDone?.()
+        } else if (currentEvent === 'error') {
+          try {
+            const errorData = JSON.parse(currentData)
+            callbacks.onError?.(errorData.message)
+          } catch (e) {
+            callbacks.onError?.(currentData)
+          }
+        }
+      }
+    }
+  }
+}
+
 // ==================== 会话管理接口 ====================
 
 export interface Session {

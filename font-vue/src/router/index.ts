@@ -6,7 +6,7 @@ const getToken = () => localStorage.getItem('access_token')
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: '/chat'
+    redirect: '/agent-workbench'
   },
   {
     path: '/login',
@@ -37,6 +37,12 @@ const routes: RouteRecordRaw[] = [
     name: 'Chat',
     component: () => import('@/views/Chat.vue'),
     meta: { title: '智能问答', icon: 'ChatDotRound' }
+  },
+  {
+    path: '/agent-workbench',
+    name: 'AgentWorkbench',
+    component: () => import('@/views/AgentWorkbench.vue'),
+    meta: { title: 'Agent工作台', icon: 'Cpu' }
   }
 ]
 
@@ -49,7 +55,7 @@ router.beforeEach((to, _from, next) => {
   const token = getToken()
   if (to.path === '/login' || to.path === '/register') {
     // 已登录访问登录/注册页，跳转到首页
-    if (token) return next('/chat')
+    if (token) return next('/agent-workbench')
     return next()
   }
   if (!token) {
