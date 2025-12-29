@@ -32,3 +32,15 @@ API_KEY = "your_api_key_here"
 # Vanna配置
 VANNA_MODEL = "deepseek-v3"
 VANNA_API_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+
+# MCP 服务器配置（参考 Qwen Agent 的配置方式）
+MCP_SERVERS = {
+    "mcpServers": {
+        "drawio": {
+            # 使用 npx 运行 drawio-mcp-server（官方推荐方式）
+            "command": "npx",
+            "args": ["-y", "drawio-mcp-server"],
+            "timeout": 60
+        }
+    }
+}
