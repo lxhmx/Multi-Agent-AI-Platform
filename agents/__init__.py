@@ -62,12 +62,16 @@ class AgentRegistry:
         # 延迟导入避免循环依赖
         from agents.data_analyst_agent import DataAnalystAgent
         from agents.flowchart_agent import FlowchartAgent
+        from agents.browser_agent import BrowserAgent
         
         if "data_analyst" not in cls._agents:
             cls.register(DataAnalystAgent)
         
         if "flowchart" not in cls._agents:
             cls.register(FlowchartAgent)
+        
+        if "browser" not in cls._agents:
+            cls.register(BrowserAgent)
 
 
 # 便捷函数

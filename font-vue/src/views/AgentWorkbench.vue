@@ -8,15 +8,19 @@ const router = useRouter()
 const agents = ref<AgentInfo[]>([])
 const loading = ref(false)
 
-// 智能体图标映射
+// 智能体图标映射（与 Chat.vue 弹框保持一致）
 const agentIcons: Record<string, string> = {
   data_analyst: 'DataAnalysis',
+  flowchart: 'Share',
+  browser: 'Monitor',
   default: 'Cpu'
 }
 
-// 智能体颜色映射
+// 智能体颜色映射（与 Chat.vue 弹框保持一致）
 const agentColors: Record<string, string> = {
   data_analyst: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+  flowchart: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+  browser: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
   default: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
 }
 
@@ -88,7 +92,10 @@ onMounted(() => {
       >
         <div class="card-icon" :style="{ background: agentColors[agent.name] || agentColors.default }">
           <el-icon :size="36">
-            <component :is="agentIcons[agent.name] || agentIcons.default" />
+            <Share v-if="agent.name === 'flowchart'" />
+            <Monitor v-else-if="agent.name === 'browser'" />
+            <DataAnalysis v-else-if="agent.name === 'data_analyst'" />
+            <Cpu v-else />
           </el-icon>
         </div>
         <div class="card-content">

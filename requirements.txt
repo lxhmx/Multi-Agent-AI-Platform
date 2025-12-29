@@ -53,3 +53,7 @@ requests>=2.31.0
 # Testing
 pytest>=7.4.0
 hypothesis>=6.92.0
+
+# Browser Automation
+browser-use>=0.1.0
+playwright>=1.40.0

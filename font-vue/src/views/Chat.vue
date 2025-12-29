@@ -48,6 +48,7 @@ const agentIcons: Record<string, string> = {
   'auto': 'MagicStick',
   'data_analyst': 'DataAnalysis',
   'flowchart': 'Share',
+  'browser': 'Monitor',
 }
 
 // 智能体颜色映射
@@ -55,6 +56,15 @@ const agentColors: Record<string, string> = {
   'auto': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
   'data_analyst': 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
   'flowchart': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+  'browser': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+}
+
+// 智能体欢迎语映射
+const agentWelcomeMessages: Record<string, string> = {
+  'auto': '您好！我是智能助手。我可以帮您查询数据、生成报表、绘制流程图和自动化浏览器操作。请问有什么可以帮助您的？',
+  'data_analyst': '您好！我是数据分析智能体。我可以帮您查询数据、生成报表和回答数据相关问题。请问有什么可以帮助您的？',
+  'flowchart': '您好！我是流程图智能体。我可以帮您根据描述生成流程图、序列图、组织架构图等。请问有什么可以帮助您的？',
+  'browser': '您好！我是浏览器自动化智能体。我可以帮您自动操作浏览器，完成网页搜索、数据采集、表单填写等任务。请问有什么可以帮助您的？',
 }
 
 // 当前选中的智能体信息
@@ -152,10 +162,12 @@ const handleCreateSession = async () => {
     const session = await createSession()
     sessions.value.unshift(session)
     currentSessionId.value = session.id
+    // 根据选择的智能体显示不同的欢迎语
+    const welcomeMessage = agentWelcomeMessages[selectedAgent.value] || agentWelcomeMessages['auto']
     messages.value = [{
       id: Date.now(),
       role: 'assistant',
-      content: '您好！我是智能知识库助手。我可以帮您查询数据、生成报表和回答问题。请问有什么可以帮助您的？',
+      content: welcomeMessage,
       time: formatTime(new Date())
     }]
   } catch (error) {
@@ -552,6 +564,7 @@ const handleKeydown = (e: KeyboardEvent) => {
                 <div class="agent-icon" :style="{ background: agentColors[selectedAgent] || agentColors['auto'] }">
                   <el-icon v-if="selectedAgent === 'auto'"><MagicStick /></el-icon>
                   <el-icon v-else-if="selectedAgent === 'flowchart'"><Share /></el-icon>
+                  <el-icon v-else-if="selectedAgent === 'browser'"><Monitor /></el-icon>
                   <el-icon v-else><DataAnalysis /></el-icon>
                 </div>
                 <span class="agent-name">
@@ -596,6 +609,7 @@ const handleKeydown = (e: KeyboardEvent) => {
                       <div class="agent-grid-icon" :style="{ background: agentColors[agent.name] || 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' }">
                         <el-icon :size="24">
                           <Share v-if="agent.name === 'flowchart'" />
+                          <Monitor v-else-if="agent.name === 'browser'" />
                           <DataAnalysis v-else />
                         </el-icon>
                       </div>
