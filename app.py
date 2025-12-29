@@ -36,11 +36,40 @@ async def lifespan(app: FastAPI):
     # 启动时初始化
     from api.data_manage_api import init_table
     init_table()
+    
+    # 预启动 Draw.io MCP 服务器（避免首次请求时延迟）
+    mcp_client = None
+    try:
+        from agents.flowchart_agent.mcp_client import get_mcp_client
+        mcp_client = await get_mcp_client()
+        if await mcp_client.start():
+            response = await mcp_client.initialize()
+            if response.success:
+                # 预加载工具列表
+                await mcp_client.list_tools()
+                print(f"[MCP] Draw.io MCP 服务器已启动，发现 {len(mcp_client.tools)} 个工具")
+            else:
+                print(f"[MCP] MCP 初始化失败: {response.error}")
+        else:
+            print("[MCP] Draw.io MCP 服务器启动失败")
+            print("[MCP] 流程图功能将在首次使用时尝试连接")
+    except Exception as e:
+        print(f"[MCP] Draw.io MCP 服务器启动失败: {e}")
+        print("[MCP] 流程图功能将在首次使用时尝试连接")
+    
     print("=" * 60)
     print("Vanna Text2SQL API 服务 (FastAPI)")
     print("=" * 60)
+    
     yield
-    # 关闭时清理（如需要）
+    
+    # 关闭时清理 MCP 连接
+    try:
+        if mcp_client:
+            await mcp_client.stop()
+            print("[MCP] Draw.io MCP 服务器已关闭")
+    except Exception as e:
+        print(f"[MCP] 关闭 MCP 服务器时出错: {e}")
 
 
 # 创建 FastAPI 应用

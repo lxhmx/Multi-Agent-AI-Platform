@@ -1,10 +1,18 @@
 """
 智能体统一路由 API
 提供统一的智能体调用入口，支持自动路由和指定智能体
+
+SSE Event Types:
+- answer: 文本回答片段
+- flowchart: 流程图数据 (包含 svg_content, diagram_id, title)
+- done: 完成信号
+- error: 错误信息
 """
 
 import json
 import traceback
+import base64
+import re
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -15,6 +23,65 @@ from agents import AgentRegistry
 from common.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/agent", tags=["智能体"])
+
+
+def _encode_flowchart_data(svg_content: str, diagram_id: str, title: str) -> str:
+    """
+    编码流程图数据为 Base64 格式（支持 UTF-8 中文）
+    
+    Args:
+        svg_content: SVG 内容
+        diagram_id: 图表 ID
+        title: 图表标题
+    
+    Returns:
+        str: Base64 编码的 JSON 字符串
+    """
+    data = {
+        "svg_content": svg_content,
+        "diagram_id": diagram_id,
+        "title": title
+    }
+    json_str = json.dumps(data, ensure_ascii=False)
+    return base64.b64encode(json_str.encode('utf-8')).decode('ascii')
+
+
+def _extract_flowchart_from_response(text: str) -> Optional[dict]:
+    """
+    从响应文本中提取流程图数据
+    
+    检测响应中是否包含流程图工具调用结果，
+    如果包含则提取 svg_content, diagram_id, title
+    
+    Args:
+        text: 响应文本
+    
+    Returns:
+        dict: 流程图数据，如果没有则返回 None
+    """
+    # 检查是否包含流程图相关的 JSON 数据
+    # 工具返回的格式通常包含 svg_content 字段
+    try:
+        # 尝试查找 JSON 格式的流程图数据
+        # 模式1: 直接的 JSON 对象
+        json_pattern = r'\{[^{}]*"svg_content"[^{}]*\}'
+        matches = re.findall(json_pattern, text, re.DOTALL)
+        
+        for match in matches:
+            try:
+                data = json.loads(match)
+                if data.get("svg_content") and data.get("success", True):
+                    return {
+                        "svg_content": data.get("svg_content", ""),
+                        "diagram_id": data.get("diagram_id", ""),
+                        "title": data.get("title", "")
+                    }
+            except json.JSONDecodeError:
+                continue
+        
+        return None
+    except Exception:
+        return None
 
 
 class AgentRequest(BaseModel):
@@ -40,6 +107,12 @@ async def chat_with_agent(req: AgentRequest, user=Depends(get_current_user)):
     """
     question = req.question.strip()
     
+    # 调试日志：打印接收到的参数
+    print(f"\n[Agent Router] 接收请求:")
+    print(f"  - question: {question}")
+    print(f"  - agent_name: {req.agent_name} (type: {type(req.agent_name)})")
+    print(f"  - session_id: {req.session_id}")
+    
     if not question:
         async def error_gen():
             yield f"event: error\ndata: {json.dumps({'message': '问题不能为空'}, ensure_ascii=False)}\n\n"
@@ -47,6 +120,7 @@ async def chat_with_agent(req: AgentRequest, user=Depends(get_current_user)):
     
     # 获取智能体
     if req.agent_name:
+        print(f"[Agent Router] 使用指定智能体: {req.agent_name}")
         agent = AgentRegistry.get(req.agent_name)
         if not agent:
             raise HTTPException(
@@ -54,7 +128,9 @@ async def chat_with_agent(req: AgentRequest, user=Depends(get_current_user)):
                 detail=f"智能体 '{req.agent_name}' 不存在"
             )
     else:
+        print(f"[Agent Router] 自动路由...")
         agent = AgentRegistry.route(question)
+        print(f"[Agent Router] 路由结果: {agent.name}")
     
     async def generate():
         try:
@@ -62,9 +138,28 @@ async def chat_with_agent(req: AgentRequest, user=Depends(get_current_user)):
             print(f"[Agent Router] 使用智能体: {agent.name}")
             print(f"[Agent Router] Session ID: {req.session_id}")
             
+            # 收集完整响应用于检测流程图数据
+            full_response = ""
+            flowchart_sent = False
+            
             # 流式输出
             async for chunk in agent.run_stream(question, req.session_id):
+                full_response += chunk
                 yield f"event: answer\ndata: {chunk}\n\n"
+                
+                # 检查是否有流程图数据（在流式过程中检测）
+                if not flowchart_sent and agent.name == "flowchart":
+                    flowchart_data = _extract_flowchart_from_response(full_response)
+                    if flowchart_data and flowchart_data.get("svg_content"):
+                        # 发送流程图事件
+                        encoded_data = _encode_flowchart_data(
+                            flowchart_data["svg_content"],
+                            flowchart_data["diagram_id"],
+                            flowchart_data["title"]
+                        )
+                        yield f"event: flowchart\ndata: {encoded_data}\n\n"
+                        flowchart_sent = True
+                        print(f"[Agent Router] 发送流程图数据: diagram_id={flowchart_data['diagram_id']}")
             
             # 发送完成信号
             done_data = json.dumps({

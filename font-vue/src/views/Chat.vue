@@ -9,6 +9,7 @@ import {
 } from '@/api'
 import type { QueryResult, Session, SessionMessage, AgentInfo } from '@/api'
 import SessionSidebar from '@/components/SessionSidebar.vue'
+import FlowchartRenderer from '@/components/FlowchartRenderer.vue'
 
 const route = useRoute()
 
@@ -20,6 +21,11 @@ interface Message {
   data?: Partial<QueryResult>
   isStreaming?: boolean
   agentUsed?: string  // 记录使用的智能体
+  flowchart?: {
+    svgContent: string
+    diagramId: string
+    title: string
+  }
 }
 
 const messages = ref<Message[]>([])
@@ -41,12 +47,14 @@ const showAgentSelector = ref(false)
 const agentIcons: Record<string, string> = {
   'auto': 'MagicStick',
   'data_analyst': 'DataAnalysis',
+  'flowchart': 'Share',
 }
 
 // 智能体颜色映射
 const agentColors: Record<string, string> = {
   'auto': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
   'data_analyst': 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+  'flowchart': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
 }
 
 // 当前选中的智能体信息
@@ -294,6 +302,13 @@ const sendMessage = async () => {
             msg.agentUsed = usedAgent
           }
         },
+        onFlowchart: (flowchartData: { svgContent: string; diagramId: string; title: string }) => {
+          const msg = messages.value.find(m => m.id === assistantMsgId)
+          if (msg) {
+            msg.flowchart = flowchartData
+            scrollToBottom()
+          }
+        },
         onDone: async () => {
           const msg = messages.value.find(m => m.id === assistantMsgId)
           if (msg) {
@@ -489,6 +504,14 @@ const handleKeydown = (e: KeyboardEvent) => {
                 </div>
               </div>
               
+              <!-- 如果有流程图，显示流程图渲染器 -->
+              <FlowchartRenderer
+                v-if="msg.flowchart"
+                :svg-content="msg.flowchart.svgContent"
+                :diagram-id="msg.flowchart.diagramId"
+                :title="msg.flowchart.title"
+              />
+              
               <div class="message-time">{{ msg.time }}</div>
             </div>
           </div>
@@ -528,6 +551,7 @@ const handleKeydown = (e: KeyboardEvent) => {
               <div class="agent-trigger" @click="showAgentSelector = !showAgentSelector">
                 <div class="agent-icon" :style="{ background: agentColors[selectedAgent] || agentColors['auto'] }">
                   <el-icon v-if="selectedAgent === 'auto'"><MagicStick /></el-icon>
+                  <el-icon v-else-if="selectedAgent === 'flowchart'"><Share /></el-icon>
                   <el-icon v-else><DataAnalysis /></el-icon>
                 </div>
                 <span class="agent-name">
@@ -570,7 +594,10 @@ const handleKeydown = (e: KeyboardEvent) => {
                       @click="selectAgent(agent.name)"
                     >
                       <div class="agent-grid-icon" :style="{ background: agentColors[agent.name] || 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' }">
-                        <el-icon :size="24"><DataAnalysis /></el-icon>
+                        <el-icon :size="24">
+                          <Share v-if="agent.name === 'flowchart'" />
+                          <DataAnalysis v-else />
+                        </el-icon>
                       </div>
                       <div class="agent-grid-name">{{ agent.description.split('，')[0] }}</div>
                       <div class="agent-grid-desc">{{ agent.name }}</div>

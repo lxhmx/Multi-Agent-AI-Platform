@@ -33,3 +33,6 @@ CREATE TABLE IF NOT EXISTS users (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_login DATETIME NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
+
+
+INSERT INTO `users`(`id`, `username`, `email`, `password_hash`, `disabled`, `created_at`, `last_login`) VALUES (2, 'lixihu', NULL, '$2b$12$PWssbyZGdqZaZjPpG4Ojte7YBEwxnFAF6i1XqqxJ8cesfiMXV4e2y', 0, '2025-12-15 17:09:01', NULL);

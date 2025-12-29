@@ -61,9 +61,13 @@ class AgentRegistry:
         """初始化所有智能体"""
         # 延迟导入避免循环依赖
         from agents.data_analyst_agent import DataAnalystAgent
+        from agents.flowchart_agent import FlowchartAgent
         
         if "data_analyst" not in cls._agents:
             cls.register(DataAnalystAgent)
+        
+        if "flowchart" not in cls._agents:
+            cls.register(FlowchartAgent)
 
 
 # 便捷函数

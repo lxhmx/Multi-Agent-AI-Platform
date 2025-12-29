@@ -40,7 +40,7 @@ const doLogin = async () => {
     localStorage.setItem('access_token', data.access_token)
     localStorage.setItem('refresh_token', data.refresh_token)
     ElMessage.success('登录成功')
-    router.push('/chat')
+    router.push('/agent-workbench')
   } catch (e: any) {
     ElMessage.error(e.message || '登录失败')
   } finally {

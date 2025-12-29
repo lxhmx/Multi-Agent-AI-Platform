@@ -49,6 +49,7 @@ chroma.sqlite3
 .env
 .env.*
 .windsurf
+.hypothesis
 
 # Local Config (建议忽略实际配置文件，只保留模板)
 config.py

@@ -248,6 +248,7 @@ export const queryQuestionStream = async (
 // Agent 模式问答（SSE 流式，自动决定是否查询数据库）
 export interface AgentStreamCallbacks {
   onAnswer?: (chunk: string) => void
+  onFlowchart?: (data: { svgContent: string; diagramId: string; title: string }) => void
   onDone?: () => void
   onError?: (message: string) => void
 }
@@ -358,74 +359,104 @@ export const queryAgentChatStream = async (
   agentName?: string  // 可选，不传则自动路由
 ): Promise<void> => {
   const token = localStorage.getItem('access_token')
-  const response = await fetch('/api/agent/chat', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': token ? `Bearer ${token}` : '',
-    },
-    body: JSON.stringify({ 
-      question, 
-      session_id: sessionId,
-      agent_name: agentName || null  // null 表示自动路由
-    }),
-  })
+  
+  try {
+    const response = await fetch('/api/agent/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+      body: JSON.stringify({ 
+        question, 
+        session_id: sessionId,
+        agent_name: agentName || null  // null 表示自动路由
+      }),
+    })
 
-  if (!response.ok) {
-    callbacks.onError?.('请求失败')
-    return
-  }
+    if (!response.ok) {
+      callbacks.onError?.('请求失败')
+      return
+    }
 
-  const reader = response.body?.getReader()
-  if (!reader) {
-    callbacks.onError?.('无法读取响应流')
-    return
-  }
+    const reader = response.body?.getReader()
+    if (!reader) {
+      callbacks.onError?.('无法读取响应流')
+      return
+    }
 
-  const decoder = new TextDecoder()
-  let buffer = ''
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let receivedDone = false
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
 
-    buffer += decoder.decode(value, { stream: true })
-    
-    const parts = buffer.split('\n\n')
-    buffer = parts.pop() || ''
-
-    for (const part of parts) {
-      const lines = part.split('\n')
-      let currentEvent = ''
-      let currentData = ''
+      buffer += decoder.decode(value, { stream: true })
       
-      for (const line of lines) {
-        if (line.startsWith('event: ')) {
-          currentEvent = line.slice(7).trim()
-        } else if (line.startsWith('data: ')) {
-          currentData = line.slice(6)
+      const parts = buffer.split('\n\n')
+      buffer = parts.pop() || ''
+
+      for (const part of parts) {
+        const lines = part.split('\n')
+        let currentEvent = ''
+        let currentData = ''
+        
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim()
+          } else if (line.startsWith('data: ')) {
+            currentData = line.slice(6)
+          }
         }
-      }
-      
-      if (currentEvent && currentData !== '') {
-        if (currentEvent === 'answer') {
-          callbacks.onAnswer?.(currentData)
-        } else if (currentEvent === 'done') {
-          try {
-            const doneData = JSON.parse(currentData)
-            callbacks.onAgentUsed?.(doneData.agent)
-          } catch (e) {}
-          callbacks.onDone?.()
-        } else if (currentEvent === 'error') {
-          try {
-            const errorData = JSON.parse(currentData)
-            callbacks.onError?.(errorData.message)
-          } catch (e) {
-            callbacks.onError?.(currentData)
+        
+        if (currentEvent && currentData !== '') {
+          if (currentEvent === 'answer') {
+            callbacks.onAnswer?.(currentData)
+          } else if (currentEvent === 'flowchart') {
+            try {
+              // Base64 解码（支持 UTF-8 中文）
+              const binaryStr = atob(currentData)
+              const bytes = Uint8Array.from(binaryStr, c => c.charCodeAt(0))
+              const jsonStr = new TextDecoder('utf-8').decode(bytes)
+              const flowchartData = JSON.parse(jsonStr)
+              console.log('[SSE] 收到流程图数据:', flowchartData)
+              callbacks.onFlowchart?.({
+                svgContent: flowchartData.svg_content,
+                diagramId: flowchartData.diagram_id,
+                title: flowchartData.title || ''
+              })
+            } catch (e) {
+              console.error('解析流程图数据失败:', e, currentData)
+            }
+          } else if (currentEvent === 'done') {
+            receivedDone = true
+            try {
+              const doneData = JSON.parse(currentData)
+              callbacks.onAgentUsed?.(doneData.agent)
+            } catch (e) {}
+            callbacks.onDone?.()
+          } else if (currentEvent === 'error') {
+            try {
+              const errorData = JSON.parse(currentData)
+              callbacks.onError?.(errorData.message)
+            } catch (e) {
+              callbacks.onError?.(currentData)
+            }
           }
         }
       }
     }
+    
+    // 如果流结束但没有收到 done 事件，也要调用 onDone
+    if (!receivedDone) {
+      console.log('[SSE] 流结束但未收到 done 事件，自动完成')
+      callbacks.onDone?.()
+    }
+  } catch (error) {
+    console.error('[SSE] 连接错误:', error)
+    callbacks.onError?.('连接中断，请重试')
   }
 }
 
