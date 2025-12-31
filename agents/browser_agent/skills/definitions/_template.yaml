@@ -1,0 +1,37 @@
+# 技能定义模板
+# 复制此文件并重命名为你的技能名称（如 taobao_order.yaml）
+
+skill:
+  # 技能唯一标识（建议与文件名一致，使用下划线命名）
+  id: your_skill_id
+  
+  # 技能显示名称（用户看到的名字，支持中文）
+  name: 你的技能名称
+  
+  # 技能描述（LLM 用于理解技能用途，尽量详细）
+  description: 描述这个技能能做什么，帮助 LLM 理解何时应该调用它
+  
+  # 触发关键词（LLM 匹配用，越多越好）
+  triggers:
+    - 关键词1
+    - 关键词2
+    - keyword_en
+  
+  # 对应的 Playwright 脚本路径（相对于 skills 目录）
+  script: scripts/your_skill_id.py
+  
+  # 可选参数定义（如果脚本需要参数）
+  parameters:
+    - name: param_name
+      type: string  # string / number / boolean
+      required: false
+      description: 参数描述
+      default: default_value
+  
+  # 执行前是否需要用户确认（建议敏感操作设为 true）
+  require_confirmation: true
+  
+  # 标签（用于分类和筛选）
+  tags:
+    - 分类1
+    - 分类2

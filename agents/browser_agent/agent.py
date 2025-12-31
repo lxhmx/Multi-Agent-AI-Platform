@@ -3,6 +3,10 @@
 
 基于 Browser-Use 实现，可以根据自然语言指令自动操作浏览器。
 继承自 BaseAgent，遵循现有的智能体框架模式。
+
+支持两种模式：
+1. Skills 模式：用户说"执行xxx脚本"时，匹配并执行预定义的 Playwright 脚本
+2. Browser-Use 模式：通用的浏览器自动化任务
 """
 
 import asyncio
@@ -13,6 +17,7 @@ from langchain_core.tools import BaseTool
 
 from agents.base import BaseAgent
 from agents.browser_agent.prompts import SYSTEM_PROMPT, ROUTING_KEYWORDS, detect_task_type
+from agents.browser_agent.skills import SkillHandler
 from core.memory import AgentMemory
 
 logger = logging.getLogger(__name__)
@@ -34,6 +39,25 @@ class BrowserAgent(BaseAgent):
     def __init__(self):
         self._memory = AgentMemory(max_rounds=10)
         self._browser = None
+        self._skill_handler: Optional[SkillHandler] = None
+    
+    def _get_skill_handler(self) -> SkillHandler:
+        """获取 SkillHandler 实例（懒加载）"""
+        if self._skill_handler is None:
+            self._skill_handler = SkillHandler(llm=self._get_llm(), headless=False)
+        return self._skill_handler
+    
+    def _get_llm(self):
+        """获取 LLM 实例"""
+        from langchain_openai import ChatOpenAI
+        from config import API_KEY, VANNA_API_BASE
+        
+        return ChatOpenAI(
+            model="qwen3-max",
+            api_key=API_KEY,
+            base_url=VANNA_API_BASE,
+            temperature=0.3,
+        )
     
     def get_tools(self) -> List[BaseTool]:
         """
@@ -63,7 +87,7 @@ class BrowserAgent(BaseAgent):
     async def _create_agent(self, task: str):
         """创建 Browser-Use Agent"""
         try:
-            from browser_use import Agent, ChatOpenAI
+            from browser_use import Agent,ChatOpenAI
         except ImportError:
             logger.error("browser-use 未安装，请运行: pip install browser-use playwright")
             raise ImportError("browser-use 未安装，请运行: pip install browser-use playwright")
@@ -93,7 +117,22 @@ class BrowserAgent(BaseAgent):
     
     async def _run_async(self, question: str, session_id: Optional[str] = None) -> str:
         """异步执行任务"""
+        session_id = session_id or "default"
+        
         try:
+            # 获取对话历史
+            history = self._memory.get_messages(session_id)
+            
+            # 先检查是否是技能请求
+            skill_handler = self._get_skill_handler()
+            if skill_handler.is_skill_request(question):
+                result = await skill_handler.handle(question, history=history)
+                if result.get("matched") or result.get("action") in ("need_confirm", "cancel"):
+                    output = self._format_skill_result(result)
+                    self._memory.add_message(session_id, question, output)
+                    return output
+            
+            # 不是技能请求，使用 browser-use 执行
             agent = await self._create_agent(question)
             result = await agent.run()
             output = self._extract_result(result)
@@ -104,6 +143,32 @@ class BrowserAgent(BaseAgent):
         except Exception as e:
             logger.error(f"[BrowserAgent] 执行异常: {e}")
             return f"执行任务时出现错误：{str(e)}"
+    
+    def _format_skill_result(self, result: dict) -> str:
+        """格式化技能执行结果"""
+        action = result.get("action", "")
+        
+        # 需要确认
+        if action == "need_confirm":
+            return result.get("message", "请确认是否执行")
+        
+        # 取消操作
+        if action == "cancel":
+            return result.get("message", "已取消")
+        
+        # 未匹配
+        if not result.get("matched"):
+            return result.get("message", "未找到匹配的技能")
+        
+        # 执行成功
+        if result.get("success"):
+            output = f"✅ 技能 '{result.get('skill')}' 执行成功\n\n"
+            output += f"{result.get('message', '')}\n"
+            if result.get("data"):
+                output += f"\n结果: {result.get('data')}"
+            return output
+        else:
+            return f"❌ 执行失败: {result.get('message', '未知错误')}"
     
     async def run_stream(
         self, 
@@ -120,9 +185,23 @@ class BrowserAgent(BaseAgent):
         Yields:
             str: 流式输出的文本片段
         """
+        session_id = session_id or "default"
         full_output = ""
         
         try:
+            # 获取对话历史
+            history = self._memory.get_messages(session_id)
+            
+            # 先检查是否是技能请求
+            skill_handler = self._get_skill_handler()
+            if skill_handler.is_skill_request(question):
+                async for msg in skill_handler.handle_stream(question, history=history):
+                    full_output += msg
+                    yield msg
+                self._memory.add_message(session_id, question, full_output)
+                return
+            
+            # 不是技能请求，使用 browser-use 执行
             task_type = detect_task_type(question)
             
             # 输出开始信息
@@ -226,7 +305,7 @@ class BrowserAgent(BaseAgent):
         self._memory.clear(session_id)
     
     async def close(self):
-        """关闭浏览器"""
+        """关闭浏览器和技能处理器"""
         if self._browser:
             try:
                 await self._browser.close()
@@ -234,3 +313,11 @@ class BrowserAgent(BaseAgent):
                 logger.error(f"关闭浏览器失败: {e}")
             finally:
                 self._browser = None
+        
+        if self._skill_handler:
+            try:
+                await self._skill_handler.close()
+            except Exception as e:
+                logger.error(f"关闭技能处理器失败: {e}")
+            finally:
+                self._skill_handler = None
