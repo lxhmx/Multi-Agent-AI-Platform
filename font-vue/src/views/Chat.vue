@@ -2,6 +2,7 @@
 import { ref, nextTick, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { marked } from 'marked'
 import { 
   queryQuestionStream, queryAgentChatStream, getAgentList,
   getSessions, createSession, getSessionDetail, 
@@ -10,6 +11,18 @@ import {
 import type { QueryResult, Session, SessionMessage, AgentInfo } from '@/api'
 import SessionSidebar from '@/components/SessionSidebar.vue'
 import FlowchartRenderer from '@/components/FlowchartRenderer.vue'
+
+// 配置 marked
+marked.setOptions({
+  breaks: true,  // 支持 GFM 换行
+  gfm: true,     // 启用 GitHub 风格 Markdown
+})
+
+// 渲染 Markdown 内容
+const renderMarkdown = (content: string): string => {
+  if (!content) return ''
+  return marked.parse(content) as string
+}
 
 const route = useRoute()
 
@@ -481,8 +494,10 @@ const handleKeydown = (e: KeyboardEvent) => {
             </div>
             
             <div class="message-content">
-              <div class="message-bubble" :class="{ streaming: msg.isStreaming }">
-                {{ msg.content }}<span v-if="msg.isStreaming" class="cursor">|</span>
+              <div class="message-bubble markdown-body" :class="{ streaming: msg.isStreaming }">
+                <div v-if="msg.role === 'assistant'" v-html="renderMarkdown(msg.content)"></div>
+                <template v-else>{{ msg.content }}</template>
+                <span v-if="msg.isStreaming" class="cursor">|</span>
                 <!-- 显示使用的智能体标签 -->
                 <div v-if="msg.role === 'assistant' && msg.agentUsed" class="agent-tag">
                   <el-icon><Cpu /></el-icon>
@@ -789,6 +804,8 @@ const handleKeydown = (e: KeyboardEvent) => {
       background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
       color: #fff;
       border-radius: 18px 18px 4px 18px;
+      
+      // 用户消息不需要 Markdown 样式，保持简洁
     }
     
     .message-content {
@@ -831,6 +848,137 @@ const handleKeydown = (e: KeyboardEvent) => {
   padding: 14px 18px;
   font-size: 14px;
   line-height: 1.7;
+  
+  // Markdown 渲染样式
+  &.markdown-body {
+    // 段落
+    p {
+      margin: 0 0 0.8em 0;
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+    
+    // 标题
+    h1, h2, h3, h4, h5, h6 {
+      margin: 0.8em 0 0.5em 0;
+      font-weight: 600;
+      line-height: 1.4;
+      &:first-child {
+        margin-top: 0;
+      }
+    }
+    h1 { font-size: 1.4em; }
+    h2 { font-size: 1.25em; }
+    h3 { font-size: 1.1em; }
+    
+    // 粗体和强调
+    strong {
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+    
+    em {
+      font-style: italic;
+    }
+    
+    // 成功状态的强调文字（包含 ✅）
+    p:has(strong:first-child) {
+      &:first-of-type strong {
+        display: inline-block;
+      }
+    }
+    
+    // 列表
+    ul, ol {
+      margin: 0.5em 0;
+      padding-left: 1.5em;
+    }
+    
+    li {
+      margin: 0.3em 0;
+      line-height: 1.6;
+    }
+    
+    ul li {
+      list-style-type: disc;
+    }
+    
+    ol li {
+      list-style-type: decimal;
+    }
+    
+    // 代码
+    code {
+      background: rgba(0, 0, 0, 0.06);
+      padding: 0.2em 0.4em;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+      font-size: 0.9em;
+    }
+    
+    pre {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 12px 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 0.8em 0;
+      
+      code {
+        background: transparent;
+        padding: 0;
+        color: inherit;
+      }
+    }
+    
+    // 引用
+    blockquote {
+      margin: 0.8em 0;
+      padding: 0.5em 1em;
+      border-left: 4px solid #5b8def;
+      background: rgba(91, 141, 239, 0.08);
+      border-radius: 0 8px 8px 0;
+      
+      p {
+        margin: 0;
+      }
+    }
+    
+    // 链接
+    a {
+      color: #5b8def;
+      text-decoration: none;
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+    
+    // 分隔线
+    hr {
+      border: none;
+      border-top: 1px solid rgba(0, 0, 0, 0.1);
+      margin: 1em 0;
+    }
+    
+    // 表格
+    table {
+      border-collapse: collapse;
+      margin: 0.8em 0;
+      width: 100%;
+      
+      th, td {
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        padding: 8px 12px;
+        text-align: left;
+      }
+      
+      th {
+        background: rgba(0, 0, 0, 0.04);
+        font-weight: 600;
+      }
+    }
+  }
   
   &.loading {
     display: flex;
