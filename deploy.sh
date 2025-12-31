@@ -36,6 +36,13 @@ deploy_backend() {
     log_info "检查 Python 依赖..."
     ./venv/bin/pip install -r requirements.txt --quiet
     
+    # 检查 Playwright 浏览器是否已安装
+    if ! ls $HOME/.cache/ms-playwright/chromium-* 1>/dev/null 2>&1; then
+        log_info "安装 Playwright 浏览器..."
+        ./venv/bin/playwright install chromium
+        ./venv/bin/playwright install-deps chromium 2>/dev/null || log_warn "系统依赖可能需要手动安装: playwright install-deps chromium"
+    fi
+    
     # 重启后端服务
     log_info "重启后端服务..."
     systemctl restart text2sql
