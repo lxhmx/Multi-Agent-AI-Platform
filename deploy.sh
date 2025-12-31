@@ -22,7 +22,15 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 pull_code() {
     log_info "拉取最新代码..."
     cd $PROJECT_DIR
+    
+    # 丢弃 deploy.sh 的本地修改（避免冲突）
+    git checkout -- deploy.sh 2>/dev/null || true
+    
     git pull origin main || git pull origin master
+    
+    # 确保脚本有执行权限（Windows 提交的文件可能没有）
+    chmod +x deploy.sh
+    
     log_info "代码更新完成"
 }
 
