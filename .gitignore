@@ -38,6 +38,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+# Vue 3 TypeScript 自动生成的文件
+font-vue/src/components.d.ts
+*.d.ts
 
 # Database / Vanna
 dbData/

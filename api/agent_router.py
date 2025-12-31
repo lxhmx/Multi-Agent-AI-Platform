@@ -4,26 +4,23 @@
 
 SSE Event Types:
 - answer: 文本回答片段
-- flowchart: 流程图数据 (包含 svg_content, diagram_id, title)
+- answer_base64: Base64 编码的文本（包含换行符时使用）
+- image: Base64 编码的图片数据
+- image_meta: 图片元信息 JSON (包含 diagram_id, title, format, xml)
 - done: 完成信号 (包含 success: bool, message: str, agent: str, user_id: int)
 - error: 错误信息 (包含 message: str)
 
 前端处理示例:
 ```javascript
-eventSource.addEventListener('done', (event) => {
-    const data = JSON.parse(event.data);
-    if (data.success) {
-        // 任务成功
-        showNotification('success', data.message || '任务执行完成');
-    } else {
-        // 任务失败
-        showNotification('error', data.message || '任务执行失败');
-    }
+eventSource.addEventListener('image', (event) => {
+    const imageBase64 = event.data;
+    const imgSrc = `data:image/png;base64,${imageBase64}`;
+    // 显示图片
 });
 
-eventSource.addEventListener('error', (event) => {
-    const data = JSON.parse(event.data);
-    showNotification('error', data.message);
+eventSource.addEventListener('image_meta', (event) => {
+    const meta = JSON.parse(atob(event.data));
+    // meta.diagram_id, meta.title, meta.format, meta.xml
 });
 ```
 """
@@ -31,7 +28,6 @@ eventSource.addEventListener('error', (event) => {
 import json
 import traceback
 import base64
-import re
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -44,63 +40,12 @@ from common.dependencies import get_current_user
 router = APIRouter(prefix="/api/agent", tags=["智能体"])
 
 
-def _encode_flowchart_data(svg_content: str, diagram_id: str, title: str) -> str:
+def _encode_image_meta(meta: dict) -> str:
     """
-    编码流程图数据为 Base64 格式（支持 UTF-8 中文）
-    
-    Args:
-        svg_content: SVG 内容
-        diagram_id: 图表 ID
-        title: 图表标题
-    
-    Returns:
-        str: Base64 编码的 JSON 字符串
+    编码图片元信息为 Base64 格式
     """
-    data = {
-        "svg_content": svg_content,
-        "diagram_id": diagram_id,
-        "title": title
-    }
-    json_str = json.dumps(data, ensure_ascii=False)
+    json_str = json.dumps(meta, ensure_ascii=False)
     return base64.b64encode(json_str.encode('utf-8')).decode('ascii')
-
-
-def _extract_flowchart_from_response(text: str) -> Optional[dict]:
-    """
-    从响应文本中提取流程图数据
-    
-    检测响应中是否包含流程图工具调用结果，
-    如果包含则提取 svg_content, diagram_id, title
-    
-    Args:
-        text: 响应文本
-    
-    Returns:
-        dict: 流程图数据，如果没有则返回 None
-    """
-    # 检查是否包含流程图相关的 JSON 数据
-    # 工具返回的格式通常包含 svg_content 字段
-    try:
-        # 尝试查找 JSON 格式的流程图数据
-        # 模式1: 直接的 JSON 对象
-        json_pattern = r'\{[^{}]*"svg_content"[^{}]*\}'
-        matches = re.findall(json_pattern, text, re.DOTALL)
-        
-        for match in matches:
-            try:
-                data = json.loads(match)
-                if data.get("svg_content") and data.get("success", True):
-                    return {
-                        "svg_content": data.get("svg_content", ""),
-                        "diagram_id": data.get("diagram_id", ""),
-                        "title": data.get("title", "")
-                    }
-            except json.JSONDecodeError:
-                continue
-        
-        return None
-    except Exception:
-        return None
 
 
 class AgentRequest(BaseModel):
@@ -157,34 +102,36 @@ async def chat_with_agent(req: AgentRequest, user=Depends(get_current_user)):
             print(f"[Agent Router] 使用智能体: {agent.name}")
             print(f"[Agent Router] Session ID: {req.session_id}")
             
-            # 收集完整响应用于检测流程图数据
+            # 收集完整响应
             full_response = ""
-            flowchart_sent = False
             
             # 流式输出
             async for chunk in agent.run_stream(question, req.session_id):
+                # 检查是否是图片数据
+                if chunk.startswith("[IMAGE:") and chunk.endswith("]"):
+                    # 提取图片 Base64 数据
+                    image_base64 = chunk[7:-1]
+                    yield f"event: image\ndata: {image_base64}\n\n"
+                    print(f"[Agent Router] 发送图片数据，大小: {len(image_base64)} chars")
+                    continue
+                
+                # 检查是否是图片元信息
+                if chunk.startswith("[IMAGE_META:") and chunk.endswith("]"):
+                    # 提取元信息 JSON
+                    meta_json = chunk[12:-1]
+                    encoded_meta = base64.b64encode(meta_json.encode('utf-8')).decode('ascii')
+                    yield f"event: image_meta\ndata: {encoded_meta}\n\n"
+                    print(f"[Agent Router] 发送图片元信息")
+                    continue
+                
                 full_response += chunk
-                # SSE data 字段不能包含换行符，需要对每行单独发送或编码
-                # 方案：将包含换行的内容用 Base64 编码
+                
+                # SSE data 字段不能包含换行符
                 if '\n' in chunk:
                     encoded_chunk = base64.b64encode(chunk.encode('utf-8')).decode('ascii')
                     yield f"event: answer_base64\ndata: {encoded_chunk}\n\n"
                 else:
                     yield f"event: answer\ndata: {chunk}\n\n"
-                
-                # 检查是否有流程图数据（在流式过程中检测）
-                if not flowchart_sent and agent.name == "flowchart":
-                    flowchart_data = _extract_flowchart_from_response(full_response)
-                    if flowchart_data and flowchart_data.get("svg_content"):
-                        # 发送流程图事件
-                        encoded_data = _encode_flowchart_data(
-                            flowchart_data["svg_content"],
-                            flowchart_data["diagram_id"],
-                            flowchart_data["title"]
-                        )
-                        yield f"event: flowchart\ndata: {encoded_data}\n\n"
-                        flowchart_sent = True
-                        print(f"[Agent Router] 发送流程图数据: diagram_id={flowchart_data['diagram_id']}")
             
             # 发送完成信号
             done_data = json.dumps({

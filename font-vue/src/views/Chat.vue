@@ -11,6 +11,7 @@ import {
 import type { QueryResult, Session, SessionMessage, AgentInfo } from '@/api'
 import SessionSidebar from '@/components/SessionSidebar.vue'
 import FlowchartRenderer from '@/components/FlowchartRenderer.vue'
+import DiagramImageRenderer from '@/components/DiagramImageRenderer.vue'
 
 // 配置 marked
 marked.setOptions({
@@ -38,6 +39,14 @@ interface Message {
     svgContent: string
     diagramId: string
     title: string
+  }
+  // 新增：图片数据
+  image?: {
+    imageData: string  // data:image/png;base64,xxx
+    format: string
+    diagramId?: string
+    title?: string
+    xml?: string  // 原始 XML，用于下载 .drawio 文件
   }
 }
 
@@ -334,6 +343,30 @@ const sendMessage = async () => {
             scrollToBottom()
           }
         },
+        onImage: (imageData: { imageData: string; format: string }) => {
+          const msg = messages.value.find(m => m.id === assistantMsgId)
+          if (msg) {
+            if (!msg.image) {
+              msg.image = { imageData: imageData.imageData, format: imageData.format }
+            } else {
+              msg.image.imageData = imageData.imageData
+              msg.image.format = imageData.format
+            }
+            scrollToBottom()
+          }
+        },
+        onImageMeta: (meta: { diagram_id: string; title: string; format: string; xml: string }) => {
+          const msg = messages.value.find(m => m.id === assistantMsgId)
+          if (msg) {
+            if (!msg.image) {
+              msg.image = { imageData: '', format: meta.format }
+            }
+            msg.image.diagramId = meta.diagram_id
+            msg.image.title = meta.title
+            msg.image.xml = meta.xml
+            scrollToBottom()
+          }
+        },
         onDone: async () => {
           const msg = messages.value.find(m => m.id === assistantMsgId)
           if (msg) {
@@ -531,12 +564,22 @@ const handleKeydown = (e: KeyboardEvent) => {
                 </div>
               </div>
               
-              <!-- 如果有流程图，显示流程图渲染器 -->
+              <!-- 如果有流程图，显示流程图渲染器（旧版兼容） -->
               <FlowchartRenderer
                 v-if="msg.flowchart"
                 :svg-content="msg.flowchart.svgContent"
                 :diagram-id="msg.flowchart.diagramId"
                 :title="msg.flowchart.title"
+              />
+              
+              <!-- 如果有图片，显示图片渲染器（新版） -->
+              <DiagramImageRenderer
+                v-if="msg.image && msg.image.imageData"
+                :image-data="msg.image.imageData"
+                :format="msg.image.format"
+                :diagram-id="msg.image.diagramId"
+                :title="msg.image.title"
+                :xml="msg.image.xml"
               />
               
               <div class="message-time">{{ msg.time }}</div>

@@ -253,9 +253,23 @@ export interface AgentDoneData {
   user_id?: number
 }
 
+export interface ImageData {
+  imageData: string  // data:image/png;base64,xxx 格式
+  format: string
+}
+
+export interface ImageMeta {
+  diagram_id: string
+  title: string
+  format: string
+  xml: string  // 原始 XML，可用于下载 .drawio 文件
+}
+
 export interface AgentStreamCallbacks {
   onAnswer?: (chunk: string) => void
   onFlowchart?: (data: { svgContent: string; diagramId: string; title: string }) => void
+  onImage?: (data: ImageData) => void
+  onImageMeta?: (meta: ImageMeta) => void
   onDone?: (data?: AgentDoneData) => void
   onError?: (message: string) => void
 }
@@ -434,7 +448,7 @@ export const queryAgentChatStream = async (
             }
           } else if (currentEvent === 'flowchart') {
             try {
-              // Base64 解码（支持 UTF-8 中文）
+              // Base64 解码（支持 UTF-8 中文）- 旧版兼容
               const binaryStr = atob(currentData)
               const bytes = Uint8Array.from(binaryStr, c => c.charCodeAt(0))
               const jsonStr = new TextDecoder('utf-8').decode(bytes)
@@ -447,6 +461,25 @@ export const queryAgentChatStream = async (
               })
             } catch (e) {
               console.error('解析流程图数据失败:', e, currentData)
+            }
+          } else if (currentEvent === 'image') {
+            // 图片数据（Base64 PNG）
+            console.log('[SSE] 收到图片数据，大小:', currentData.length)
+            callbacks.onImage?.({
+              imageData: `data:image/png;base64,${currentData}`,
+              format: 'png'
+            })
+          } else if (currentEvent === 'image_meta') {
+            // 图片元信息（Base64 编码的 JSON）
+            try {
+              const binaryStr = atob(currentData)
+              const bytes = Uint8Array.from(binaryStr, c => c.charCodeAt(0))
+              const jsonStr = new TextDecoder('utf-8').decode(bytes)
+              const meta = JSON.parse(jsonStr)
+              console.log('[SSE] 收到图片元信息:', meta)
+              callbacks.onImageMeta?.(meta)
+            } catch (e) {
+              console.error('解析图片元信息失败:', e)
             }
           } else if (currentEvent === 'done') {
             receivedDone = true

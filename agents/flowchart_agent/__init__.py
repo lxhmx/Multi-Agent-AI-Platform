@@ -1,25 +1,18 @@
 """
-流程图智能体模块
+流程图智能体模块 V2
+
+使用 LLM 生成 mxGraphModel XML，然后调用 export 服务转换为图片。
 """
 
-from agents.flowchart_agent.models import DiagramNode, DiagramEdge, DiagramData
-from agents.flowchart_agent.mcp_client import MCPClient, MCPTool, MCPResponse, get_mcp_client
-from agents.flowchart_agent.tools import get_tools, refresh_tools, cleanup
 from agents.flowchart_agent.agent import FlowchartAgent
+from agents.flowchart_agent.exporter import DiagramExporter, ExportError, get_exporter
 from agents.flowchart_agent.prompts import SYSTEM_PROMPT, ROUTING_KEYWORDS, detect_diagram_type
 
 __all__ = [
     "FlowchartAgent",
-    "DiagramNode",
-    "DiagramEdge",
-    "DiagramData",
-    "MCPClient",
-    "MCPTool",
-    "MCPResponse",
-    "get_mcp_client",
-    "get_tools",
-    "refresh_tools",
-    "cleanup",
+    "DiagramExporter",
+    "ExportError",
+    "get_exporter",
     "SYSTEM_PROMPT",
     "ROUTING_KEYWORDS",
     "detect_diagram_type",
