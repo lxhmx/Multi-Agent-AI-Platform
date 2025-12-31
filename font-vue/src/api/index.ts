@@ -246,10 +246,17 @@ export const queryQuestionStream = async (
 }
 
 // Agent 模式问答（SSE 流式，自动决定是否查询数据库）
+export interface AgentDoneData {
+  success: boolean
+  message?: string
+  agent?: string
+  user_id?: number
+}
+
 export interface AgentStreamCallbacks {
   onAnswer?: (chunk: string) => void
   onFlowchart?: (data: { svgContent: string; diagramId: string; title: string }) => void
-  onDone?: () => void
+  onDone?: (data?: AgentDoneData) => void
   onError?: (message: string) => void
 }
 
@@ -414,6 +421,17 @@ export const queryAgentChatStream = async (
         if (currentEvent && currentData !== '') {
           if (currentEvent === 'answer') {
             callbacks.onAnswer?.(currentData)
+          } else if (currentEvent === 'answer_base64') {
+            // Base64 解码（支持 UTF-8 中文和换行符）
+            try {
+              const binaryStr = atob(currentData)
+              const bytes = Uint8Array.from(binaryStr, c => c.charCodeAt(0))
+              const decodedText = new TextDecoder('utf-8').decode(bytes)
+              callbacks.onAnswer?.(decodedText)
+            } catch (e) {
+              console.error('解码 answer_base64 失败:', e)
+              callbacks.onAnswer?.(currentData)
+            }
           } else if (currentEvent === 'flowchart') {
             try {
               // Base64 解码（支持 UTF-8 中文）
@@ -434,9 +452,13 @@ export const queryAgentChatStream = async (
             receivedDone = true
             try {
               const doneData = JSON.parse(currentData)
+              console.log('[SSE] 任务完成:', doneData)
               callbacks.onAgentUsed?.(doneData.agent)
-            } catch (e) {}
-            callbacks.onDone?.()
+              // 传递完整的 done 数据，包含 success 和 message
+              callbacks.onDone?.(doneData)
+            } catch (e) {
+              callbacks.onDone?.()
+            }
           } else if (currentEvent === 'error') {
             try {
               const errorData = JSON.parse(currentData)

@@ -5,8 +5,27 @@
 SSE Event Types:
 - answer: 文本回答片段
 - flowchart: 流程图数据 (包含 svg_content, diagram_id, title)
-- done: 完成信号
-- error: 错误信息
+- done: 完成信号 (包含 success: bool, message: str, agent: str, user_id: int)
+- error: 错误信息 (包含 message: str)
+
+前端处理示例:
+```javascript
+eventSource.addEventListener('done', (event) => {
+    const data = JSON.parse(event.data);
+    if (data.success) {
+        // 任务成功
+        showNotification('success', data.message || '任务执行完成');
+    } else {
+        // 任务失败
+        showNotification('error', data.message || '任务执行失败');
+    }
+});
+
+eventSource.addEventListener('error', (event) => {
+    const data = JSON.parse(event.data);
+    showNotification('error', data.message);
+});
+```
 """
 
 import json
@@ -145,7 +164,13 @@ async def chat_with_agent(req: AgentRequest, user=Depends(get_current_user)):
             # 流式输出
             async for chunk in agent.run_stream(question, req.session_id):
                 full_response += chunk
-                yield f"event: answer\ndata: {chunk}\n\n"
+                # SSE data 字段不能包含换行符，需要对每行单独发送或编码
+                # 方案：将包含换行的内容用 Base64 编码
+                if '\n' in chunk:
+                    encoded_chunk = base64.b64encode(chunk.encode('utf-8')).decode('ascii')
+                    yield f"event: answer_base64\ndata: {encoded_chunk}\n\n"
+                else:
+                    yield f"event: answer\ndata: {chunk}\n\n"
                 
                 # 检查是否有流程图数据（在流式过程中检测）
                 if not flowchart_sent and agent.name == "flowchart":
@@ -166,7 +191,7 @@ async def chat_with_agent(req: AgentRequest, user=Depends(get_current_user)):
                 'success': True,
                 'agent': agent.name,
                 'user_id': user["id"]
-            })
+            }, ensure_ascii=False)
             yield f"event: done\ndata: {done_data}\n\n"
             
         except Exception as e:
