@@ -57,3 +57,6 @@ hypothesis>=6.92.0
 # Browser Automation
 browser-use>=0.1.0
 playwright>=1.40.0
+
+# SSH 连接（服务器监控）
+paramiko>=3.4.0

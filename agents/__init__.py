@@ -63,6 +63,7 @@ class AgentRegistry:
         from agents.data_analyst_agent import DataAnalystAgent
         from agents.flowchart_agent import FlowchartAgent
         from agents.browser_agent import BrowserAgent
+        from agents.server_monitor_agent import ServerMonitorAgent
         
         if "data_analyst" not in cls._agents:
             cls.register(DataAnalystAgent)
@@ -72,6 +73,9 @@ class AgentRegistry:
         
         if "browser" not in cls._agents:
             cls.register(BrowserAgent)
+        
+        if "server_monitor" not in cls._agents:
+            cls.register(ServerMonitorAgent)
 
 
 # 便捷函数
