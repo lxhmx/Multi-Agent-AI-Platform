@@ -64,6 +64,7 @@ class AgentRegistry:
         from agents.flowchart_agent import FlowchartAgent
         from agents.browser_agent import BrowserAgent
         from agents.server_monitor_agent import ServerMonitorAgent
+        from agents.video_summary_agent import VideoSummaryAgent
         
         if "data_analyst" not in cls._agents:
             cls.register(DataAnalystAgent)
@@ -76,6 +77,9 @@ class AgentRegistry:
         
         if "server_monitor" not in cls._agents:
             cls.register(ServerMonitorAgent)
+        
+        if "video_summary" not in cls._agents:
+            cls.register(VideoSummaryAgent)
 
 
 # 便捷函数
