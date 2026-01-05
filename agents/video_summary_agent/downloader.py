@@ -18,17 +18,20 @@ logger = logging.getLogger(__name__)
 
 # 平台域名到 cookies 文件名的映射
 PLATFORM_COOKIES_MAP = {
-    "douyin.com": "www.douyin.com_cookies.txt",
-    "v.douyin.com": "www.douyin.com_cookies.txt",
-    "xiaohongshu.com": "www.xiaohongshu.com_cookies.txt",
-    "xhslink.com": "www.xiaohongshu.com_cookies.txt",
-    "bilibili.com": "www.bilibili.com_cookies.txt",
-    "b23.tv": "www.bilibili.com_cookies.txt",
-    "weixin.qq.com": "channels.weixin.qq.com_cookies.txt",  # 视频号
-    "youtube.com": "www.youtube.com_cookies.txt",
-    "youtu.be": "www.youtube.com_cookies.txt",
-    "tiktok.com": "www.tiktok.com_cookies.txt",
+    "douyin.com": "douyin_cookies.txt",
+    "v.douyin.com": "douyin_cookies.txt",
+    "xiaohongshu.com": "xiaohongshu_cookies.txt",
+    "xhslink.com": "xiaohongshu_cookies.txt",
+    "bilibili.com": "bilibili_cookies.txt",
+    "b23.tv": "bilibili_cookies.txt",
+    "weixin.qq.com": "weixin_cookies.txt",  # 视频号
+    "youtube.com": "youtube_cookies.txt",
+    "youtu.be": "youtube_cookies.txt",
+    "tiktok.com": "tiktok_cookies.txt",
 }
+
+# 支持从浏览器直接读取 cookies 的浏览器列表
+SUPPORTED_BROWSERS = ['chrome', 'firefox', 'edge', 'safari', 'opera', 'brave', 'chromium', 'vivaldi']
 
 
 @dataclass
@@ -49,12 +52,15 @@ class VideoDownloader:
         self,
         output_dir: Optional[str] = None,
         base_url: Optional[str] = None,
-        cookies_dir: Optional[str] = None
+        cookies_dir: Optional[str] = None,
+        cookies_from_browser: Optional[str] = None  # 新增：从浏览器读取 cookies
     ):
         self.output_dir = Path(output_dir or VIDEO_OUTPUT_DIR)
         self.base_url = (base_url or VIDEO_BASE_URL).rstrip("/")
         # cookies 文件存放目录
         self.cookies_dir = Path(cookies_dir or VIDEO_OUTPUT_DIR) / "cookies"
+        # 从浏览器读取 cookies（如 'chrome', 'firefox', 'edge' 等）
+        self.cookies_from_browser = cookies_from_browser
         
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.cookies_dir.mkdir(parents=True, exist_ok=True)
@@ -101,6 +107,30 @@ class VideoDownloader:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._download_sync, url)
     
+    def _get_http_headers(self, url: str) -> dict:
+        """根据 URL 获取对应平台的 HTTP headers"""
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        }
+        
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+        
+        # B站特殊处理
+        if 'bilibili.com' in domain or 'b23.tv' in domain:
+            headers['Referer'] = 'https://www.bilibili.com/'
+            headers['Origin'] = 'https://www.bilibili.com'
+        # 抖音特殊处理
+        elif 'douyin.com' in domain:
+            headers['Referer'] = 'https://www.douyin.com/'
+        # 小红书特殊处理
+        elif 'xiaohongshu.com' in domain or 'xhslink.com' in domain:
+            headers['Referer'] = 'https://www.xiaohongshu.com/'
+        
+        return headers
+    
     def _download_sync(self, url: str) -> VideoInfo:
         """同步下载视频"""
         try:
@@ -112,19 +142,38 @@ class VideoDownloader:
         filename = f"{video_id}.mp4"
         output_path = self.output_dir / filename
         
+        # 构建 yt-dlp 选项
         ydl_opts = {
             'outtmpl': str(output_path),
             'format': 'best[ext=mp4]/best',
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
-            # 根据平台自动匹配 cookies
-            'cookiefile': self._get_cookies_file(url),
-            # 模拟浏览器
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            },
+            # 根据平台设置 headers
+            'http_headers': self._get_http_headers(url),
+            # 重试设置
+            'retries': 3,
+            'fragment_retries': 3,
+            # 网络超时
+            'socket_timeout': 30,
         }
+        
+        # 优先使用浏览器 cookies（推荐方式）
+        if self.cookies_from_browser and self.cookies_from_browser in SUPPORTED_BROWSERS:
+            ydl_opts['cookiesfrombrowser'] = (self.cookies_from_browser,)
+            logger.info(f"[VideoDownloader] 使用浏览器 cookies: {self.cookies_from_browser}")
+        else:
+            # 回退到 cookies 文件
+            cookies_file = self._get_cookies_file(url)
+            if cookies_file:
+                ydl_opts['cookiefile'] = cookies_file
+        
+        # B站特殊处理
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+        if 'bilibili.com' in domain or 'b23.tv' in domain:
+            # 使用正确的 extractor_args 格式
+            ydl_opts['extractor_args'] = {'BiliBili': ['prefer_formats=dash-flv']}
         
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
