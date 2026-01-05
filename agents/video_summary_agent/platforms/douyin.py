@@ -3,12 +3,43 @@
 """
 
 import re
+import os
 import logging
 from typing import Optional
 
 from agents.video_summary_agent.platforms.base import BasePlatform, VideoInfo
 
 logger = logging.getLogger(__name__)
+
+
+def parse_netscape_cookies(cookie_file: str) -> list:
+    """解析 Netscape 格式 cookies 为 Playwright 格式"""
+    cookies = []
+    
+    with open(cookie_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                parts = line.split('\t')
+                if len(parts) >= 7:
+                    cookie = {
+                        "name": parts[5],
+                        "value": parts[6],
+                        "domain": parts[0],
+                        "path": parts[2],
+                        "secure": parts[3].lower() == "true",
+                        "httpOnly": False,
+                    }
+                    try:
+                        expires = int(parts[4])
+                        if expires > 0:
+                            cookie["expires"] = expires
+                    except:
+                        pass
+                    
+                    cookies.append(cookie)
+    
+    return cookies
 
 
 class DouyinPlatform(BasePlatform):
@@ -43,6 +74,13 @@ class DouyinPlatform(BasePlatform):
         from playwright.async_api import async_playwright
         import asyncio
         
+        # 获取 cookies 文件路径
+        try:
+            from config import DOUYIN_COOKIES_FILE
+            cookies_file = DOUYIN_COOKIES_FILE
+        except ImportError:
+            cookies_file = "/opt/app/text2sql/douyin_cookies.txt"
+        
         video_url = ""
         title = ""
         author = ""
@@ -57,6 +95,18 @@ class DouyinPlatform(BasePlatform):
             context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             )
+            
+            # 加载 cookies（如果有）
+            if os.path.exists(cookies_file):
+                try:
+                    cookies = parse_netscape_cookies(cookies_file)
+                    if cookies:
+                        await context.add_cookies(cookies)
+                        logger.info(f"[Douyin] 已加载 {len(cookies)} 个 cookies")
+                except Exception as e:
+                    logger.warning(f"[Douyin] 加载 cookies 失败: {e}")
+            else:
+                logger.warning(f"[Douyin] Cookies 文件不存在: {cookies_file}")
             
             page = await context.new_page()
             

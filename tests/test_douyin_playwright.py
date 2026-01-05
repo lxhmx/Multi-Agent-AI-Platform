@@ -43,9 +43,19 @@ async def parse_douyin_video(url: str) -> dict:
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         )
         
-        # 加载 cookies（如果有）
-        cookies_file = r"C:\Users\lxh10\Downloads\douyin_cookies.txt"
-        if os.path.exists(cookies_file):
+        # 加载 cookies（如果有）- 支持 Windows 和 Linux
+        cookies_files = [
+            r"C:\Users\lxh10\Downloads\douyin_cookies.txt",  # Windows
+            "/opt/app/video/cookies/douyin_cookies.txt",     # Linux
+        ]
+        
+        cookies_file = None
+        for f in cookies_files:
+            if os.path.exists(f):
+                cookies_file = f
+                break
+        
+        if cookies_file:
             try:
                 cookies = parse_netscape_cookies(cookies_file)
                 if cookies:
