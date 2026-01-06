@@ -43,6 +43,12 @@ const routes: RouteRecordRaw[] = [
     name: 'AgentWorkbench',
     component: () => import('@/views/AgentWorkbench.vue'),
     meta: { title: 'Agent工作台', icon: 'Cpu' }
+  },
+  {
+    path: '/video-summary',
+    name: 'VideoSummary',
+    component: () => import('@/views/VideoSummary.vue'),
+    meta: { title: '视界拾贝', icon: 'VideoCamera' }
   }
 ]
 

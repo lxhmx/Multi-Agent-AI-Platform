@@ -28,6 +28,7 @@ from api.upload_api import router as upload_router
 from api.train_api import router as train_router
 from api.session_api import router as session_router
 from api.agent_router import router as agent_router
+from api.video_summary_api import router as video_summary_router
 
 
 @asynccontextmanager
@@ -73,6 +74,7 @@ app.include_router(upload_router)        # 上传接口
 app.include_router(train_router)         # 训练接口
 app.include_router(session_router)       # 会话管理接口
 app.include_router(agent_router)         # 智能体统一入口（新）
+app.include_router(video_summary_router) # 视频总结接口
 
 
 # ==================== 健康检查 ====================

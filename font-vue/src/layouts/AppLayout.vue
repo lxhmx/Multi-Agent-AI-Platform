@@ -14,6 +14,7 @@ onMounted(() => {
 
 const menuItems = [
   { path: '/agent-workbench', title: 'Agent工作台', icon: 'Cpu' },
+  { path: '/video-summary', title: '视界拾贝', icon: 'VideoCamera' },
   { path: '/chat', title: '智能问答', icon: 'ChatDotRound' },
   { path: '/training', title: '知识训练', icon: 'Upload' },
   { path: '/data-manage', title: '数据管理', icon: 'Document' }
