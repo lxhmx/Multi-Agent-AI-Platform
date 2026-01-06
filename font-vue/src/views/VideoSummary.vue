@@ -240,7 +240,7 @@ const uploadToKnowledge = async () => {
   try {
     const title = videoTitle.value || `视频总结_${new Date().toLocaleString()}`
     
-    await trainManual({
+    const res = await trainManual({
       type: 'documentation',
       content: summaryContent.value,
       title: title,
@@ -248,11 +248,18 @@ const uploadToKnowledge = async () => {
       tags: '视频总结,AI分析'
     })
     
-    ElMessage.success('上传知识库成功！')
-    currentStep.value = 4
+    console.log('上传知识库响应:', res)
+    
+    // 检查返回结果
+    if (res && res.success !== false) {
+      ElMessage.success('上传知识库成功！')
+      currentStep.value = 4
+    } else {
+      throw new Error(res?.message || '上传失败')
+    }
   } catch (error: any) {
     console.error('上传失败:', error)
-    ElMessage.error(error.message || '上传知识库失败')
+    ElMessage.error(error.response?.data?.detail || error.message || '上传知识库失败')
   } finally {
     uploadLoading.value = false
   }

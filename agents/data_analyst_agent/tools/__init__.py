@@ -5,8 +5,9 @@
 from agents.data_analyst_agent.tools.text2sql_tool import text2sql_query
 from agents.data_analyst_agent.tools.schema_tool import get_database_schema
 from agents.data_analyst_agent.tools.equipment_tool import get_equipment_property
+from agents.data_analyst_agent.tools.knowledge_tool import search_knowledge
 
 # 导出所有工具列表
-ALL_TOOLS = [text2sql_query, get_database_schema, get_equipment_property]
+ALL_TOOLS = [text2sql_query, get_database_schema, get_equipment_property, search_knowledge]
 
-__all__ = ["ALL_TOOLS", "text2sql_query", "get_database_schema", "get_equipment_property"]
+__all__ = ["ALL_TOOLS", "text2sql_query", "get_database_schema", "get_equipment_property", "search_knowledge"]
