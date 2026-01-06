@@ -72,6 +72,32 @@ class DouyinPlatform(BasePlatform):
             return match.group(1)
         return None
     
+    def normalize_url(self, url: str) -> str:
+        """
+        将各种抖音链接格式统一转换为标准的视频页面URL
+        
+        支持的输入格式:
+        - https://www.douyin.com/jingxuan/search/xxx?modal_id=123456
+        - https://www.douyin.com/search/xxx?modal_id=123456
+        - https://www.douyin.com/user/xxx?modal_id=123456
+        - https://www.douyin.com/video/123456
+        - https://v.douyin.com/xxx (短链接)
+        
+        输出格式:
+        - https://www.douyin.com/video/123456
+        """
+        video_id = self.extract_video_id(url)
+        if video_id:
+            # 如果已经是标准格式，直接返回
+            if f"/video/{video_id}" in url:
+                return url.split('?')[0]  # 去掉查询参数
+            # 转换为标准格式
+            normalized = f"https://www.douyin.com/video/{video_id}"
+            logger.info(f"[Douyin] URL标准化: {url[:50]}... -> {normalized}")
+            return normalized
+        # 无法提取ID时返回原URL
+        return url
+    
     async def get_video_info(self, page_url: str, page=None) -> VideoInfo:
         """
         获取抖音视频真实地址
@@ -93,7 +119,10 @@ class DouyinPlatform(BasePlatform):
         author = ""
         video_id = self.extract_video_id(page_url) or ""
         
-        logger.info(f"[Douyin] 目标视频ID: {video_id}")
+        # 将URL标准化为 /video/{id} 格式，避免精选/搜索页面无法获取视频
+        page_url = self.normalize_url(page_url)
+        
+        logger.info(f"[Douyin] 目标视频ID: {video_id}, 访问URL: {page_url}")
         
         async with async_playwright() as p:
             logger.info("[Douyin] 启动浏览器...")
