@@ -51,6 +51,7 @@ class DouyinPlatform(BasePlatform):
         r"douyin\.com/video/(\d+)",
         r"douyin\.com/user/.*?/(\d+)",
         r"v\.douyin\.com/\w+",
+        r"douyin\.com/.*[?&]modal_id=(\d+)",  # 支持精选/搜索页面的 modal_id 参数
     ]
     
     def extract_video_id(self, url: str) -> Optional[str]:
@@ -59,6 +60,12 @@ class DouyinPlatform(BasePlatform):
         match = re.search(r"douyin\.com/video/(\d+)", url)
         if match:
             return match.group(1)
+        
+        # 从 modal_id 参数提取（精选/搜索页面）
+        match = re.search(r"[?&]modal_id=(\d+)", url)
+        if match:
+            return match.group(1)
+        
         # 从URL路径最后部分提取
         match = re.search(r"/(\d{15,})(?:\?|$)", url)
         if match:
