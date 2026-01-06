@@ -63,6 +63,6 @@ config_local.py
 Thumbs.db
 /train-sql
 /train-document
-/tst_
+/test_downloads
 
 /openspec

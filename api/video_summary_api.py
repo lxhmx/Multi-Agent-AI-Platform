@@ -20,6 +20,7 @@ import json
 import base64
 import traceback
 import os
+import asyncio
 from pathlib import Path
 from typing import Optional
 
@@ -30,6 +31,7 @@ from pydantic import BaseModel
 from agents.video_summary_agent.pipeline import VideoPipeline
 from agents.video_summary_agent.tools.platform_detector import PlatformDetector
 from common.dependencies import get_current_user
+from config import VIDEO_BASE_URL, VIDEO_OUTPUT_DIR
 
 router = APIRouter(prefix="/api/video-summary", tags=["视频总结"])
 
@@ -106,18 +108,75 @@ async def process_video(req: ProcessRequest, user=Depends(get_current_user)):
             # Step 3: 下载视频
             print(f"[Video Summary] Step 3: 下载视频...")
             yield f"event: download_start\ndata: 1\n\n"
-            yield f"event: download_progress\ndata: 30\n\n"
             
-            local_path = await pipeline.downloader.download(
-                url=video_info.real_url,
-                platform=platform.name,
-                video_id=video_info.video_id,
-                title=video_info.title,
+            # 进度回调函数
+            async def on_download_progress(downloaded: int, total: int, percentage: float):
+                """下载进度回调"""
+                progress_data = json.dumps({
+                    'percentage': round(percentage, 1),
+                    'downloaded': downloaded,
+                    'total': total
+                }, ensure_ascii=False)
+                # 注意：这里不能直接yield，需要通过队列传递
+                pass
+            
+            # 使用asyncio.Queue来传递进度
+            progress_queue = asyncio.Queue()
+            
+            async def progress_callback(downloaded: int, total: int, percentage: float):
+                await progress_queue.put({
+                    'downloaded': downloaded,
+                    'total': total,
+                    'percentage': percentage
+                })
+            
+            # 启动下载任务
+            download_task = asyncio.create_task(
+                pipeline.downloader.download(
+                    url=video_info.real_url,
+                    platform=platform.name,
+                    video_id=video_info.video_id,
+                    title=video_info.title,
+                    progress_callback=progress_callback
+                )
             )
             
+            # 持续发送进度直到下载完成
+            while not download_task.done():
+                try:
+                    # 等待进度更新，超时100ms
+                    progress = await asyncio.wait_for(progress_queue.get(), timeout=0.1)
+                    progress_data = json.dumps({
+                        'percentage': round(progress['percentage'], 1),
+                        'downloaded': progress['downloaded'],
+                        'total': progress['total']
+                    }, ensure_ascii=False)
+                    yield f"event: download_progress\ndata: {progress_data}\n\n"
+                except asyncio.TimeoutError:
+                    continue
+            
+            # 获取下载结果
+            local_path = await download_task
+            
+            # 发送剩余的进度消息
+            while not progress_queue.empty():
+                progress = await progress_queue.get()
+                progress_data = json.dumps({
+                    'percentage': round(progress['percentage'], 1),
+                    'downloaded': progress['downloaded'],
+                    'total': progress['total']
+                }, ensure_ascii=False)
+                yield f"event: download_progress\ndata: {progress_data}\n\n"
+            
             print(f"[Video Summary] ✓ 视频下载完成: {local_path}")
-            yield f"event: download_progress\ndata: 100\n\n"
-            download_data = json.dumps({'path': local_path}, ensure_ascii=False)
+            # 发送100%完成
+            yield f"event: download_progress\ndata: {json.dumps({'percentage': 100, 'downloaded': 0, 'total': 0}, ensure_ascii=False)}\n\n"
+            
+            # 生成可访问的视频URL
+            filename = os.path.basename(local_path)
+            video_url = f"{VIDEO_BASE_URL}/{filename}"
+            
+            download_data = json.dumps({'path': local_path, 'url': video_url}, ensure_ascii=False)
             yield f"event: download_complete\ndata: {download_data}\n\n"
             
             # Step 4: AI分析

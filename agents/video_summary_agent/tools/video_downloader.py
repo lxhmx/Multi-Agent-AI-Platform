@@ -11,13 +11,17 @@ import hashlib
 import platform
 from pathlib import Path
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Callable, Awaitable
 import aiohttp
 import asyncio
 
 from config import VIDEO_OUTPUT_DIR
 
 logger = logging.getLogger(__name__)
+
+
+# 进度回调类型: (downloaded_bytes, total_bytes, percentage) -> None
+ProgressCallback = Callable[[int, int, float], Awaitable[None]]
 
 
 def _get_output_dir() -> str:
@@ -77,7 +81,8 @@ class VideoDownloader:
         platform: str,
         video_id: str = "",
         title: str = "",
-        headers: dict = None
+        headers: dict = None,
+        progress_callback: ProgressCallback = None
     ) -> str:
         """
         下载视频
@@ -88,6 +93,7 @@ class VideoDownloader:
             video_id: 视频ID
             title: 视频标题
             headers: 请求头
+            progress_callback: 进度回调函数，参数为 (已下载字节, 总字节, 百分比)
             
         Returns:
             str: 本地文件路径
@@ -118,6 +124,7 @@ class VideoDownloader:
                     
                     total_size = int(response.headers.get('content-length', 0))
                     downloaded = 0
+                    last_callback_progress = -1  # 用于控制回调频率
                     
                     with open(filepath, 'wb') as f:
                         async for chunk in response.content.iter_chunked(8192):
@@ -125,8 +132,16 @@ class VideoDownloader:
                             downloaded += len(chunk)
                             if total_size > 0:
                                 progress = (downloaded / total_size) * 100
+                                # 每1%或每MB回调一次，避免过于频繁
+                                current_progress = int(progress)
+                                if progress_callback and current_progress > last_callback_progress:
+                                    last_callback_progress = current_progress
+                                    await progress_callback(downloaded, total_size, progress)
                                 if downloaded % (1024 * 1024) < 8192:  # 每MB打印一次
                                     logger.info(f"[VideoDownloader] 下载进度: {progress:.1f}%")
+                            elif progress_callback and downloaded % (512 * 1024) < 8192:
+                                # 如果没有content-length，每512KB回调一次
+                                await progress_callback(downloaded, 0, 0)
             
             logger.info(f"[VideoDownloader] 下载完成: {filepath}")
             return filepath

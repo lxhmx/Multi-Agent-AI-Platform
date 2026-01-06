@@ -20,17 +20,39 @@ const videoUrl = ref('')
 const videoTitle = ref('')
 const videoAuthor = ref('')
 const localVideoPath = ref('')
+const videoPlayableUrl = ref('')  // 可直接播放的视频URL
 const summaryContent = ref('')
 const originalSummary = ref('')
 
 // 状态
 const isProcessing = ref(false)
 const downloadProgress = ref(0)
+const downloadedSize = ref(0)  // 已下载大小（字节）
+const totalSize = ref(0)       // 总大小（字节）
 const analyzeProgress = ref(0)
 const uploadLoading = ref(false)
 const errorMessage = ref('')
 const hasFailed = ref(false)
 const failedStep = ref(0)
+
+// 格式化文件大小
+const formatSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+}
+
+// 下载进度显示文本
+const downloadProgressText = computed(() => {
+  if (totalSize.value > 0) {
+    return `${formatSize(downloadedSize.value)} / ${formatSize(totalSize.value)}`
+  } else if (downloadedSize.value > 0) {
+    return `已下载 ${formatSize(downloadedSize.value)}`
+  }
+  return ''
+})
 
 // 计算属性
 const canStartProcess = computed(() => videoUrl.value.trim().length > 0)
@@ -126,16 +148,28 @@ const handleSSEEvent = (eventType: string, data: string) => {
         
       case 'download_start':
         currentStep.value = 1
-        downloadProgress.value = 10
+        downloadProgress.value = 0
+        downloadedSize.value = 0
+        totalSize.value = 0
         break
         
-      case 'download_progress':
-        downloadProgress.value = Math.min(parseInt(data) || 50, 90)
+      case 'download_progress': {
+        try {
+          const progressData = JSON.parse(data)
+          downloadProgress.value = Math.min(progressData.percentage || 0, 99)
+          downloadedSize.value = progressData.downloaded || 0
+          totalSize.value = progressData.total || 0
+        } catch {
+          // 兼容旧格式（纯数字）
+          downloadProgress.value = Math.min(parseInt(data) || 0, 99)
+        }
         break
+      }
         
       case 'download_complete': {
         const downloadData = JSON.parse(data)
         localVideoPath.value = downloadData.path || ''
+        videoPlayableUrl.value = downloadData.url || ''  // 优先使用返回的可访问URL
         downloadProgress.value = 100
         setTimeout(() => {
           currentStep.value = 2
@@ -236,9 +270,12 @@ const startNewVideo = () => {
   videoTitle.value = ''
   videoAuthor.value = ''
   localVideoPath.value = ''
+  videoPlayableUrl.value = ''
   summaryContent.value = ''
   originalSummary.value = ''
   downloadProgress.value = 0
+  downloadedSize.value = 0
+  totalSize.value = 0
   analyzeProgress.value = 0
   errorMessage.value = ''
   hasFailed.value = false
@@ -252,6 +289,9 @@ const resetContent = () => {
 
 // 获取视频播放URL
 const videoPlayUrl = computed(() => {
+  // 优先使用后端返回的可直接访问的URL
+  if (videoPlayableUrl.value) return videoPlayableUrl.value
+  // 降级使用API播放
   if (!localVideoPath.value) return ''
   return `/api/video-summary/play?path=${encodeURIComponent(localVideoPath.value)}`
 })
@@ -338,7 +378,14 @@ const videoPlayUrl = computed(() => {
           </div>
           <h3>{{ hasFailed && failedStep === 1 ? '下载失败' : '正在下载视频...' }}</h3>
           <p class="loading-tip">{{ hasFailed && failedStep === 1 ? errorMessage : (videoTitle || '获取视频信息中') }}</p>
-          <el-progress v-if="!(hasFailed && failedStep === 1)" :percentage="downloadProgress" :stroke-width="8" :show-text="true" />
+          <template v-if="!(hasFailed && failedStep === 1)">
+            <el-progress :percentage="downloadProgress" :stroke-width="8" :show-text="true">
+              <template #default="{ percentage }">
+                <span class="progress-text">{{ percentage }}%</span>
+              </template>
+            </el-progress>
+            <p v-if="downloadProgressText" class="size-info">{{ downloadProgressText }}</p>
+          </template>
           <div v-if="hasFailed && failedStep === 1" class="error-actions">
             <el-button size="large" @click="startNewVideo">
               <el-icon><RefreshRight /></el-icon>
@@ -685,6 +732,19 @@ const videoPlayUrl = computed(() => {
       .el-progress-bar__inner {
         background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
       }
+    }
+    
+    .progress-text {
+      font-size: 14px;
+      font-weight: 600;
+      color: #667eea;
+    }
+    
+    .size-info {
+      font-size: 13px;
+      color: #6b7280;
+      margin: 12px 0 0 0;
+      font-family: 'Monaco', 'Menlo', monospace;
     }
   }
 }
