@@ -3,6 +3,10 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { trainManual } from '@/api'
 
+defineOptions({
+  name: 'VideoSummary'
+})
+
 // 步骤定义
 const steps = [
   { title: '输入地址', icon: 'VideoCamera' },

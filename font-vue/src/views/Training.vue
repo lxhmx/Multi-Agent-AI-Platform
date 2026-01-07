@@ -3,6 +3,10 @@ import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { uploadFile, trainManual, trainSql, trainDocument } from '@/api'
 
+defineOptions({
+  name: 'Training'
+})
+
 // 当前模式：upload | manual
 const activeMode = ref<'upload' | 'manual'>('upload')
 

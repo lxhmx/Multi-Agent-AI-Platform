@@ -4,6 +4,10 @@ import { useRouter } from 'vue-router'
 import { getAgentList } from '@/api'
 import type { AgentInfo } from '@/api'
 
+defineOptions({
+  name: 'AgentWorkbench'
+})
+
 const router = useRouter()
 const agents = ref<AgentInfo[]>([])
 const loading = ref(false)

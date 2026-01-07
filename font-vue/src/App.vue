@@ -5,13 +5,24 @@ import AppLayout from './layouts/AppLayout.vue'
 
 const route = useRoute()
 const isBlank = computed(() => route.meta.layout === 'blank')
+
+// 需要缓存的页面组件名称列表
+const cachedViews = [
+  'AgentWorkbench',
+  'VideoSummary', 
+  'Chat',
+  'Training',
+  'DataManage'
+]
 </script>
 
 <template>
   <RouterView v-slot="{ Component }">
     <component v-if="isBlank" :is="Component" />
     <AppLayout v-else>
-      <component :is="Component" />
+      <keep-alive :include="cachedViews">
+        <component :is="Component" />
+      </keep-alive>
     </AppLayout>
   </RouterView>
 </template>

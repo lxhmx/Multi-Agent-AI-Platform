@@ -1,15 +1,32 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
+import { Close } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const ready = ref(false)
 
+// Tab 标签页数据
+interface TabItem {
+  path: string
+  title: string
+  icon: string
+}
+
+const openedTabs = ref<TabItem[]>([])
+
 onMounted(() => {
   requestAnimationFrame(() => {
     ready.value = true
   })
+  // 初始化时添加当前页面到 tabs
+  addTab(route.path)
+})
+
+// 监听路由变化，自动添加 tab
+watch(() => route.path, (newPath) => {
+  addTab(newPath)
 })
 
 const menuItems = [
@@ -21,6 +38,47 @@ const menuItems = [
 ]
 
 const activeMenu = computed(() => route.path)
+
+// 添加 tab
+const addTab = (path: string) => {
+  const menuItem = menuItems.find(item => item.path === path)
+  if (!menuItem) return
+  
+  const exists = openedTabs.value.find(tab => tab.path === path)
+  if (!exists) {
+    openedTabs.value.push({
+      path: menuItem.path,
+      title: menuItem.title,
+      icon: menuItem.icon
+    })
+  }
+}
+
+// 切换 tab
+const handleTabClick = (path: string) => {
+  router.push(path)
+}
+
+// 关闭 tab
+const handleTabClose = (path: string, event: Event) => {
+  event.stopPropagation()
+  const index = openedTabs.value.findIndex(tab => tab.path === path)
+  if (index === -1) return
+  
+  openedTabs.value.splice(index, 1)
+  
+  // 如果关闭的是当前激活的 tab，需要跳转到其他 tab
+  if (path === route.path) {
+    if (openedTabs.value.length > 0) {
+      // 跳转到前一个或后一个 tab
+      const newIndex = index > 0 ? index - 1 : 0
+      router.push(openedTabs.value[newIndex].path)
+    } else {
+      // 没有其他 tab 了，跳转到默认页面
+      router.push('/agent-workbench')
+    }
+  }
+}
 
 const handleMenuSelect = (path: string) => {
   router.push(path)
@@ -108,6 +166,27 @@ const handleLogout = () => {
           </el-dropdown>
         </div>
       </header>
+
+      <!-- Tab 标签栏 -->
+      <div class="tabs-bar" v-if="openedTabs.length > 0">
+        <div 
+          v-for="tab in openedTabs" 
+          :key="tab.path"
+          class="tab-item"
+          :class="{ active: activeMenu === tab.path }"
+          @click="handleTabClick(tab.path)"
+        >
+          <el-icon :size="14"><component :is="tab.icon" /></el-icon>
+          <span class="tab-title">{{ tab.title }}</span>
+          <el-icon 
+            class="tab-close" 
+            :size="12" 
+            @click="handleTabClose(tab.path, $event)"
+          >
+            <Close />
+          </el-icon>
+        </div>
+      </div>
 
       <!-- 页面内容 -->
       <section class="page-body">
@@ -359,7 +438,97 @@ const handleLogout = () => {
   box-shadow: 
     0 4px 24px rgba(0, 0, 0, 0.06),
     0 0 0 1px rgba(255, 255, 255, 0.5) inset;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+}
+
+/* ========== Tab 标签栏 ========== */
+.tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 2px;
+  }
+}
+
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  
+  .el-icon {
+    color: #6b7280;
+    transition: color 0.25s ease;
+  }
+  
+  .tab-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: #4b5563;
+    transition: color 0.25s ease;
+  }
+  
+  .tab-close {
+    margin-left: 4px;
+    padding: 2px;
+    border-radius: 4px;
+    opacity: 0;
+    transition: all 0.2s ease;
+    
+    &:hover {
+      background: rgba(0, 0, 0, 0.1);
+      color: #ef4444;
+    }
+  }
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    
+    .tab-close {
+      opacity: 1;
+    }
+  }
+  
+  &.active {
+    background: linear-gradient(90deg, rgba(0, 212, 255, 0.15) 0%, rgba(168, 85, 247, 0.1) 100%);
+    border-color: rgba(88, 141, 239, 0.3);
+    box-shadow: 0 2px 12px rgba(88, 141, 239, 0.15);
+    
+    .el-icon:not(.tab-close) {
+      color: #5b8def;
+    }
+    
+    .tab-title {
+      color: #1f2937;
+      font-weight: 600;
+    }
+    
+    .tab-close {
+      opacity: 0.6;
+      
+      &:hover {
+        opacity: 1;
+      }
+    }
+  }
 }
 
 .topbar-left {

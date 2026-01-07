@@ -13,6 +13,9 @@ import SessionSidebar from '@/components/SessionSidebar.vue'
 import FlowchartRenderer from '@/components/FlowchartRenderer.vue'
 import DiagramImageRenderer from '@/components/DiagramImageRenderer.vue'
 
+defineOptions({
+  name: 'Chat'
+})
 // 配置 marked
 marked.setOptions({
   breaks: true,  // 支持 GFM 换行
