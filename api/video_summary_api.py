@@ -4,6 +4,7 @@
 
 SSE Event Types:
 - platform: 平台识别结果
+- fetching_url: 正在获取视频真实地址（playwright解析中）
 - video_info: 视频信息 (title, author)
 - download_start: 开始下载
 - download_progress: 下载进度 (0-100)
@@ -85,8 +86,10 @@ async def process_video(req: ProcessRequest, user=Depends(get_current_user)):
             print(f"[Video Summary] ✓ 识别到平台: {platform.display_name}")
             yield f"event: platform\ndata: {platform.display_name}\n\n"
             
-            # Step 2: 获取视频信息
+            # Step 2: 获取视频信息（这一步可能需要较长时间，因为需要用playwright获取真实地址）
             print(f"[Video Summary] Step 2: 获取视频信息...")
+            yield f"event: fetching_url\ndata: {json.dumps({'message': '正在获取视频下载地址...'}, ensure_ascii=False)}\n\n"
+            
             video_info = await platform.get_video_info(url)
             
             if not video_info.real_url:

@@ -30,6 +30,7 @@ const originalSummary = ref('')
 
 // 状态
 const isProcessing = ref(false)
+const isFetchingUrl = ref(false)  // 是否正在获取视频地址
 const downloadProgress = ref(0)
 const downloadedSize = ref(0)  // 已下载大小（字节）
 const totalSize = ref(0)       // 总大小（字节）
@@ -142,6 +143,15 @@ const handleSSEEvent = (eventType: string, data: string) => {
       case 'platform':
         console.log('平台识别:', data)
         break
+      
+      case 'fetching_url':
+        // 正在获取视频真实地址，进入步骤1但显示获取地址状态
+        currentStep.value = 1
+        isFetchingUrl.value = true
+        downloadProgress.value = 0
+        downloadedSize.value = 0
+        totalSize.value = 0
+        break
         
       case 'video_info': {
         const info = JSON.parse(data)
@@ -152,6 +162,7 @@ const handleSSEEvent = (eventType: string, data: string) => {
         
       case 'download_start':
         currentStep.value = 1
+        isFetchingUrl.value = false  // 获取地址完成，开始真正下载
         downloadProgress.value = 0
         downloadedSize.value = 0
         totalSize.value = 0
@@ -291,6 +302,7 @@ const startNewVideo = () => {
   errorMessage.value = ''
   hasFailed.value = false
   failedStep.value = 0
+  isFetchingUrl.value = false
 }
 
 // 重置编辑内容
@@ -385,17 +397,27 @@ const videoPlayUrl = computed(() => {
         <div class="loading-card" :class="{ 'has-error': hasFailed && failedStep === 1 }">
           <div class="loading-animation">
             <el-icon v-if="hasFailed && failedStep === 1" class="error-icon" :size="64"><CircleClose /></el-icon>
+            <el-icon v-else-if="isFetchingUrl" class="rotating" :size="64"><Search /></el-icon>
             <el-icon v-else class="rotating" :size="64"><Loading /></el-icon>
           </div>
-          <h3>{{ hasFailed && failedStep === 1 ? '下载失败' : '正在下载视频...' }}</h3>
-          <p class="loading-tip">{{ hasFailed && failedStep === 1 ? errorMessage : (videoTitle || '获取视频信息中') }}</p>
+          <h3>{{ hasFailed && failedStep === 1 ? '下载失败' : (isFetchingUrl ? '正在获取视频下载地址...' : '正在下载视频...') }}</h3>
+          <p class="loading-tip">{{ hasFailed && failedStep === 1 ? errorMessage : (isFetchingUrl ? '正在解析视频页面，请稍候' : (videoTitle || '准备下载中')) }}</p>
           <template v-if="!(hasFailed && failedStep === 1)">
-            <el-progress :percentage="downloadProgress" :stroke-width="8" :show-text="true">
-              <template #default="{ percentage }">
-                <span class="progress-text">{{ percentage }}%</span>
-              </template>
-            </el-progress>
-            <p v-if="downloadProgressText" class="size-info">{{ downloadProgressText }}</p>
+            <!-- 获取地址阶段：显示加载动画，不显示进度条 -->
+            <template v-if="isFetchingUrl">
+              <div class="fetching-dots">
+                <span></span><span></span><span></span>
+              </div>
+            </template>
+            <!-- 下载阶段：显示进度条 -->
+            <template v-else>
+              <el-progress :percentage="downloadProgress" :stroke-width="8" :show-text="true">
+                <template #default="{ percentage }">
+                  <span class="progress-text">{{ percentage }}%</span>
+                </template>
+              </el-progress>
+              <p v-if="downloadProgressText" class="size-info">{{ downloadProgressText }}</p>
+            </template>
           </template>
           <div v-if="hasFailed && failedStep === 1" class="error-actions">
             <el-button size="large" @click="startNewVideo">
@@ -757,6 +779,25 @@ const videoPlayUrl = computed(() => {
       margin: 12px 0 0 0;
       font-family: 'Monaco', 'Menlo', monospace;
     }
+    
+    .fetching-dots {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 20px;
+      
+      span {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        animation: bounce 1.4s ease-in-out infinite both;
+        
+        &:nth-child(1) { animation-delay: -0.32s; }
+        &:nth-child(2) { animation-delay: -0.16s; }
+        &:nth-child(3) { animation-delay: 0s; }
+      }
+    }
   }
 }
 
@@ -764,6 +805,17 @@ const videoPlayUrl = computed(() => {
   0%, 100% { transform: translateX(0); }
   20%, 60% { transform: translateX(-5px); }
   40%, 80% { transform: translateX(5px); }
+}
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .rotating {
