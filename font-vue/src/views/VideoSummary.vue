@@ -35,6 +35,7 @@ const downloadProgress = ref(0)
 const downloadedSize = ref(0)  // 已下载大小（字节）
 const totalSize = ref(0)       // 总大小（字节）
 const analyzeProgress = ref(0)
+const analyzeStatus = ref('')  // AI分析状态文本
 const uploadLoading = ref(false)
 const errorMessage = ref('')
 const hasFailed = ref(false)
@@ -195,15 +196,25 @@ const handleSSEEvent = (eventType: string, data: string) => {
         
       case 'analyze_start':
         currentStep.value = 2
-        analyzeProgress.value = 20
+        analyzeProgress.value = 10
+        analyzeStatus.value = '准备分析视频...'
         break
         
-      case 'analyze_progress':
-        analyzeProgress.value = Math.min(parseInt(data) || 50, 90)
+      case 'analyze_progress': {
+        try {
+          const progressData = JSON.parse(data)
+          analyzeProgress.value = Math.min(progressData.percentage || 50, 99)
+          analyzeStatus.value = progressData.status || 'AI正在分析中...'
+        } catch {
+          // 兼容旧格式（纯数字）
+          analyzeProgress.value = Math.min(parseInt(data) || 50, 99)
+        }
         break
+      }
         
       case 'analyze_complete':
         analyzeProgress.value = 100
+        analyzeStatus.value = '分析完成'
         break
         
       case 'summary':
@@ -299,6 +310,7 @@ const startNewVideo = () => {
   downloadedSize.value = 0
   totalSize.value = 0
   analyzeProgress.value = 0
+  analyzeStatus.value = ''
   errorMessage.value = ''
   hasFailed.value = false
   failedStep.value = 0
@@ -436,8 +448,14 @@ const videoPlayUrl = computed(() => {
             <el-icon v-else class="rotating" :size="64"><MagicStick /></el-icon>
           </div>
           <h3>{{ hasFailed && failedStep === 2 ? 'AI 分析失败' : 'AI 正在分析视频内容...' }}</h3>
-          <p class="loading-tip">{{ hasFailed && failedStep === 2 ? errorMessage : '使用多模态模型智能识别视频内容' }}</p>
-          <el-progress v-if="!(hasFailed && failedStep === 2)" :percentage="analyzeProgress" :stroke-width="8" :show-text="true" />
+          <p class="loading-tip">{{ hasFailed && failedStep === 2 ? errorMessage : (analyzeStatus || '使用多模态模型智能识别视频内容') }}</p>
+          <template v-if="!(hasFailed && failedStep === 2)">
+            <el-progress :percentage="analyzeProgress" :stroke-width="8" :show-text="true">
+              <template #default="{ percentage }">
+                <span class="progress-text">{{ percentage }}%</span>
+              </template>
+            </el-progress>
+          </template>
           <div v-if="hasFailed && failedStep === 2" class="error-actions">
             <el-button size="large" @click="startNewVideo">
               <el-icon><RefreshRight /></el-icon>

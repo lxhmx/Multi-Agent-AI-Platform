@@ -182,15 +182,75 @@ async def process_video(req: ProcessRequest, user=Depends(get_current_user)):
             download_data = json.dumps({'path': local_path, 'url': video_url}, ensure_ascii=False)
             yield f"event: download_complete\ndata: {download_data}\n\n"
             
-            # Step 4: AI分析
-            print(f"[Video Summary] Step 4: AI分析视频内容...")
-            yield f"event: analyze_start\ndata: 1\n\n"
-            yield f"event: analyze_progress\ndata: 30\n\n"
+            # 发送准备分析的进度
+            yield f"event: analyze_progress\ndata: {json.dumps({'percentage': 10, 'status': '准备分析视频...'}, ensure_ascii=False)}\n\n"
             
-            summary = await pipeline.analyzer.analyze(local_path)
+            # 使用队列来传递分析进度
+            analyze_queue = asyncio.Queue()
+            
+            async def run_analysis():
+                """在后台运行分析任务"""
+                try:
+                    # 发送开始调用模型的状态
+                    await analyze_queue.put({'percentage': 30, 'status': '正在调用AI模型分析...'})
+                    result = await pipeline.analyzer.analyze(local_path)
+                    await analyze_queue.put({'percentage': 100, 'status': '分析完成', 'result': result})
+                except Exception as e:
+                    await analyze_queue.put({'error': str(e)})
+            
+            # 启动分析任务
+            analyze_task = asyncio.create_task(run_analysis())
+            
+            summary = None
+            last_progress = 10
+            
+            # 持续发送进度直到分析完成
+            while not analyze_task.done():
+                try:
+                    # 等待进度更新，超时500ms
+                    progress = await asyncio.wait_for(analyze_queue.get(), timeout=0.5)
+                    
+                    if 'error' in progress:
+                        raise Exception(progress['error'])
+                    
+                    if 'result' in progress:
+                        summary = progress['result']
+                    
+                    progress_data = json.dumps({
+                        'percentage': progress.get('percentage', last_progress),
+                        'status': progress.get('status', '分析中...')
+                    }, ensure_ascii=False)
+                    yield f"event: analyze_progress\ndata: {progress_data}\n\n"
+                    last_progress = progress.get('percentage', last_progress)
+                    
+                except asyncio.TimeoutError:
+                    # 超时时发送心跳进度，让前端知道还在处理
+                    # 进度在30-90之间缓慢增加
+                    if last_progress < 90:
+                        last_progress = min(last_progress + 2, 90)
+                    progress_data = json.dumps({
+                        'percentage': last_progress,
+                        'status': 'AI正在分析视频内容...'
+                    }, ensure_ascii=False)
+                    yield f"event: analyze_progress\ndata: {progress_data}\n\n"
+                    continue
+            
+            # 确保任务完成并获取结果
+            await analyze_task
+            
+            # 处理队列中剩余的消息
+            while not analyze_queue.empty():
+                progress = await analyze_queue.get()
+                if 'error' in progress:
+                    raise Exception(progress['error'])
+                if 'result' in progress:
+                    summary = progress['result']
+            
+            if not summary:
+                raise Exception("AI分析未返回结果")
             
             print(f"[Video Summary] ✓ AI分析完成，总结长度: {len(summary)} 字符")
-            yield f"event: analyze_progress\ndata: 100\n\n"
+            yield f"event: analyze_progress\ndata: {json.dumps({'percentage': 100, 'status': '分析完成'}, ensure_ascii=False)}\n\n"
             yield f"event: analyze_complete\ndata: 1\n\n"
             
             # Step 5: 返回总结
