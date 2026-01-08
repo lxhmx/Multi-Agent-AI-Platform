@@ -1,0 +1,30 @@
+{
+  "type": "gauge",
+  "name": "仪表盘",
+  "option": {
+    "tooltip": {
+      "formatter": "{a} <br/>{b} : {c}%"
+    },
+    "series": [
+      {
+        "name": "",
+        "type": "gauge",
+        "min": 0,
+        "max": 100,
+        "progress": {
+          "show": true
+        },
+        "detail": {
+          "valueAnimation": true,
+          "formatter": "{value}%"
+        },
+        "data": [
+          {
+            "value": 0,
+            "name": ""
+          }
+        ]
+      }
+    ]
+  }
+}

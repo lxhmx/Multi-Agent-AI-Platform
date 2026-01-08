@@ -265,11 +265,20 @@ export interface ImageMeta {
   xml: string  // 原始 XML，可用于下载 .drawio 文件
 }
 
+export interface ChartData {
+  chart_type: string
+  chart_name: string
+  option: any  // EChart option 对象
+  raw_data: any[]
+  total_count: number
+}
+
 export interface AgentStreamCallbacks {
   onAnswer?: (chunk: string) => void
   onFlowchart?: (data: { svgContent: string; diagramId: string; title: string }) => void
   onImage?: (data: ImageData) => void
   onImageMeta?: (meta: ImageMeta) => void
+  onChart?: (data: ChartData) => void
   onDone?: (data?: AgentDoneData) => void
   onError?: (message: string) => void
 }
@@ -480,6 +489,18 @@ export const queryAgentChatStream = async (
               callbacks.onImageMeta?.(meta)
             } catch (e) {
               console.error('解析图片元信息失败:', e)
+            }
+          } else if (currentEvent === 'chart') {
+            // 图表数据（Base64 编码的 JSON）
+            try {
+              const binaryStr = atob(currentData)
+              const bytes = Uint8Array.from(binaryStr, c => c.charCodeAt(0))
+              const jsonStr = new TextDecoder('utf-8').decode(bytes)
+              const chartData = JSON.parse(jsonStr)
+              console.log('[SSE] 收到图表数据:', chartData)
+              callbacks.onChart?.(chartData)
+            } catch (e) {
+              console.error('解析图表数据失败:', e)
             }
           } else if (currentEvent === 'done') {
             receivedDone = true

@@ -1,0 +1,28 @@
+{
+  "type": "line",
+  "name": "折线图",
+  "option": {
+    "tooltip": {
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "type": "category",
+      "boundaryGap": false,
+      "data": []
+    },
+    "yAxis": {
+      "type": "value"
+    },
+    "series": [
+      {
+        "name": "",
+        "type": "line",
+        "smooth": true,
+        "data": [],
+        "areaStyle": {
+          "opacity": 0.3
+        }
+      }
+    ]
+  }
+}

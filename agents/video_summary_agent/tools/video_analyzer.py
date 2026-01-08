@@ -105,6 +105,7 @@ class VideoAnalyzer:
         
         logger.info(f"[VideoAnalyzer] 开始分析视频: {video_url}")
         logger.info(f"[VideoAnalyzer] 使用模型: {self.model}")
+        logger.info(f"[VideoAnalyzer] API Base URL: {self.base_url}")
         
         try:
             messages = [
@@ -113,7 +114,8 @@ class VideoAnalyzer:
                     "content": [
                         {
                             "type": "video_url",
-                            "video_url": {"url": video_url}
+                            "video_url": {"url": video_url},
+                            "fps": 2.0  # 每2秒抽取一帧，适合一般视频
                         },
                         {
                             "type": "text",
@@ -122,6 +124,8 @@ class VideoAnalyzer:
                     ]
                 }
             ]
+            
+            logger.info(f"[VideoAnalyzer] 发送请求到模型...")
             
             response = self.client.chat.completions.create(
                 model=self.model,

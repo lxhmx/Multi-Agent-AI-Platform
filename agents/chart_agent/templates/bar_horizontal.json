@@ -1,0 +1,33 @@
+{
+  "type": "bar_horizontal",
+  "name": "横向柱状图",
+  "option": {
+    "tooltip": {
+      "trigger": "axis",
+      "axisPointer": {
+        "type": "shadow"
+      }
+    },
+    "grid": {
+      "left": "20%"
+    },
+    "xAxis": {
+      "type": "value"
+    },
+    "yAxis": {
+      "type": "category",
+      "data": [],
+      "inverse": true
+    },
+    "series": [
+      {
+        "name": "",
+        "type": "bar",
+        "data": [],
+        "itemStyle": {
+          "color": "#91cc75"
+        }
+      }
+    ]
+  }
+}

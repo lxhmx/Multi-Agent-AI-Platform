@@ -1,0 +1,32 @@
+{
+  "type": "bar",
+  "name": "柱状图",
+  "option": {
+    "tooltip": {
+      "trigger": "axis",
+      "axisPointer": {
+        "type": "shadow"
+      }
+    },
+    "xAxis": {
+      "type": "category",
+      "data": [],
+      "axisLabel": {
+        "rotate": 30
+      }
+    },
+    "yAxis": {
+      "type": "value"
+    },
+    "series": [
+      {
+        "name": "",
+        "type": "bar",
+        "data": [],
+        "itemStyle": {
+          "color": "#5470c6"
+        }
+      }
+    ]
+  }
+}

@@ -65,6 +65,7 @@ class AgentRegistry:
         from agents.browser_agent import BrowserAgent
         from agents.server_monitor_agent import ServerMonitorAgent
         from agents.video_summary_agent import VideoSummaryAgent
+        from agents.chart_agent import ChartAgent
         
         if "data_analyst" not in cls._agents:
             cls.register(DataAnalystAgent)
@@ -80,6 +81,9 @@ class AgentRegistry:
         
         if "video_summary" not in cls._agents:
             cls.register(VideoSummaryAgent)
+        
+        if "chart_agent" not in cls._agents:
+            cls.register(ChartAgent)
 
 
 # 便捷函数

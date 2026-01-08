@@ -182,6 +182,11 @@ async def process_video(req: ProcessRequest, user=Depends(get_current_user)):
             download_data = json.dumps({'path': local_path, 'url': video_url}, ensure_ascii=False)
             yield f"event: download_complete\ndata: {download_data}\n\n"
             
+            # Step 4: AI分析
+            print(f"[Video Summary] Step 4: AI分析视频内容...")
+            print(f"[Video Summary] 视频可访问URL: {video_url}")
+            yield f"event: analyze_start\ndata: 1\n\n"
+            
             # 发送准备分析的进度
             yield f"event: analyze_progress\ndata: {json.dumps({'percentage': 10, 'status': '准备分析视频...'}, ensure_ascii=False)}\n\n"
             

@@ -12,6 +12,7 @@ import type { QueryResult, Session, SessionMessage, AgentInfo } from '@/api'
 import SessionSidebar from '@/components/SessionSidebar.vue'
 import FlowchartRenderer from '@/components/FlowchartRenderer.vue'
 import DiagramImageRenderer from '@/components/DiagramImageRenderer.vue'
+import ChartRenderer from '@/components/ChartRenderer.vue'
 
 defineOptions({
   name: 'Chat'
@@ -51,6 +52,14 @@ interface Message {
     title?: string
     xml?: string  // 原始 XML，用于下载 .drawio 文件
   }
+  // 新增：图表数据
+  chart?: {
+    chartType: string
+    chartName: string
+    option: any
+    rawData?: any[]
+    totalCount?: number
+  }
 }
 
 const messages = ref<Message[]>([])
@@ -82,6 +91,7 @@ const agentColors: Record<string, string> = {
   'data_analyst': 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
   'flowchart': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
   'browser': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+  'chart_agent': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
 }
 
 // 智能体欢迎语映射
@@ -370,6 +380,19 @@ const sendMessage = async () => {
             scrollToBottom()
           }
         },
+        onChart: (chartData: { chart_type: string; chart_name: string; option: any; raw_data: any[]; total_count: number }) => {
+          const msg = messages.value.find(m => m.id === assistantMsgId)
+          if (msg) {
+            msg.chart = {
+              chartType: chartData.chart_type,
+              chartName: chartData.chart_name,
+              option: chartData.option,
+              rawData: chartData.raw_data,
+              totalCount: chartData.total_count
+            }
+            scrollToBottom()
+          }
+        },
         onDone: async () => {
           const msg = messages.value.find(m => m.id === assistantMsgId)
           if (msg) {
@@ -583,6 +606,16 @@ const handleKeydown = (e: KeyboardEvent) => {
                 :diagram-id="msg.image.diagramId"
                 :title="msg.image.title"
                 :xml="msg.image.xml"
+              />
+              
+              <!-- 如果有图表，显示图表渲染器 -->
+              <ChartRenderer
+                v-if="msg.chart"
+                :chart-type="msg.chart.chartType"
+                :chart-name="msg.chart.chartName"
+                :option="msg.chart.option"
+                :raw-data="msg.chart.rawData"
+                :total-count="msg.chart.totalCount"
               />
               
               <div class="message-time">{{ msg.time }}</div>

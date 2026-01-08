@@ -104,34 +104,117 @@ async def chat_with_agent(req: AgentRequest, user=Depends(get_current_user)):
             
             # 收集完整响应
             full_response = ""
+            # 用于累积可能被分割的特殊标记
+            buffer = ""
             
             # 流式输出
             async for chunk in agent.run_stream(question, req.session_id):
+                # 累积到 buffer
+                buffer += chunk
+                
                 # 检查是否是图片数据
-                if chunk.startswith("[IMAGE:") and chunk.endswith("]"):
+                if buffer.startswith("[IMAGE:") and buffer.endswith("]"):
                     # 提取图片 Base64 数据
-                    image_base64 = chunk[7:-1]
+                    image_base64 = buffer[7:-1]
                     yield f"event: image\ndata: {image_base64}\n\n"
                     print(f"[Agent Router] 发送图片数据，大小: {len(image_base64)} chars")
+                    buffer = ""
                     continue
                 
                 # 检查是否是图片元信息
-                if chunk.startswith("[IMAGE_META:") and chunk.endswith("]"):
+                if buffer.startswith("[IMAGE_META:") and buffer.endswith("]"):
                     # 提取元信息 JSON
-                    meta_json = chunk[12:-1]
+                    meta_json = buffer[12:-1]
                     encoded_meta = base64.b64encode(meta_json.encode('utf-8')).decode('ascii')
                     yield f"event: image_meta\ndata: {encoded_meta}\n\n"
                     print(f"[Agent Router] 发送图片元信息")
+                    buffer = ""
                     continue
                 
-                full_response += chunk
+                # 检查是否包含完整的图表数据
+                if "[CHART:" in buffer and buffer.count("[CHART:") == buffer.count("]") - buffer.count("\\]"):
+                    # 找到完整的 [CHART:...] 标记
+                    start_idx = buffer.find("[CHART:")
+                    # 找到匹配的结束 ]
+                    depth = 0
+                    end_idx = -1
+                    for i in range(start_idx + 7, len(buffer)):
+                        if buffer[i] == '{':
+                            depth += 1
+                        elif buffer[i] == '}':
+                            depth -= 1
+                        elif buffer[i] == ']' and depth == 0:
+                            end_idx = i
+                            break
+                    
+                    if end_idx > start_idx:
+                        # 发送图表前的文本
+                        before_chart = buffer[:start_idx]
+                        if before_chart.strip():
+                            full_response += before_chart
+                            if '\n' in before_chart:
+                                encoded_chunk = base64.b64encode(before_chart.encode('utf-8')).decode('ascii')
+                                yield f"event: answer_base64\ndata: {encoded_chunk}\n\n"
+                            else:
+                                yield f"event: answer\ndata: {before_chart}\n\n"
+                        
+                        # 提取并发送图表数据
+                        chart_json = buffer[start_idx + 7:end_idx]
+                        encoded_chart = base64.b64encode(chart_json.encode('utf-8')).decode('ascii')
+                        yield f"event: chart\ndata: {encoded_chart}\n\n"
+                        print(f"[Agent Router] 发送图表数据，大小: {len(chart_json)} chars")
+                        
+                        # 处理图表后的文本
+                        buffer = buffer[end_idx + 1:]
+                        continue
+                
+                # 如果 buffer 开始看起来像特殊标记，继续累积
+                if buffer.startswith("[IMAGE") or buffer.startswith("[CHART") or buffer.startswith("["):
+                    if len(buffer) < 50000:  # 防止无限累积
+                        continue
+                
+                # 正常文本，直接输出
+                full_response += buffer
                 
                 # SSE data 字段不能包含换行符
-                if '\n' in chunk:
-                    encoded_chunk = base64.b64encode(chunk.encode('utf-8')).decode('ascii')
+                if '\n' in buffer:
+                    encoded_chunk = base64.b64encode(buffer.encode('utf-8')).decode('ascii')
                     yield f"event: answer_base64\ndata: {encoded_chunk}\n\n"
                 else:
-                    yield f"event: answer\ndata: {chunk}\n\n"
+                    yield f"event: answer\ndata: {buffer}\n\n"
+                
+                buffer = ""
+            
+            # 处理剩余的 buffer
+            if buffer:
+                # 最后检查一次是否是图表数据
+                if "[CHART:" in buffer:
+                    start_idx = buffer.find("[CHART:")
+                    end_idx = buffer.rfind("]")
+                    if end_idx > start_idx:
+                        before_chart = buffer[:start_idx]
+                        if before_chart.strip():
+                            full_response += before_chart
+                            encoded_chunk = base64.b64encode(before_chart.encode('utf-8')).decode('ascii')
+                            yield f"event: answer_base64\ndata: {encoded_chunk}\n\n"
+                        
+                        chart_json = buffer[start_idx + 7:end_idx]
+                        encoded_chart = base64.b64encode(chart_json.encode('utf-8')).decode('ascii')
+                        yield f"event: chart\ndata: {encoded_chart}\n\n"
+                        print(f"[Agent Router] 发送图表数据（最终）")
+                        
+                        after_chart = buffer[end_idx + 1:]
+                        if after_chart.strip():
+                            full_response += after_chart
+                            encoded_chunk = base64.b64encode(after_chart.encode('utf-8')).decode('ascii')
+                            yield f"event: answer_base64\ndata: {encoded_chunk}\n\n"
+                else:
+                    full_response += buffer
+                    if '\n' in buffer:
+                        encoded_chunk = base64.b64encode(buffer.encode('utf-8')).decode('ascii')
+                        yield f"event: answer_base64\ndata: {encoded_chunk}\n\n"
+                    else:
+                        yield f"event: answer\ndata: {buffer}\n\n"
             
             # 发送完成信号
             done_data = json.dumps({
