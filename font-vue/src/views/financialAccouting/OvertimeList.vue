@@ -88,11 +88,16 @@ const handleExport = async () => {
     
     if (!response.ok) throw new Error('导出失败')
     
+    // 使用中文文件名
+    const monthStr = selectedMonth.value ? selectedMonth.value.replace('-', '') : '全部'
+    const timestamp = new Date().getTime()
+    const filename = `加班记录_${monthStr}_${timestamp}.xlsx`
+    
     const blob = await response.blob()
     const downloadUrl = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = downloadUrl
-    a.download = `加班记录_${selectedMonth.value || '全部'}${Date.now()}.xlsx`
+    a.download = filename
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

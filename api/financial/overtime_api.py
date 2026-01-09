@@ -473,13 +473,17 @@ async def export_overtime_records(
         wb.save(output)
         output.seek(0)
         
-        # 生成文件名
-        filename = f"加班记录_{month or '全部'}_{datetime.now().strftime('%Y%m%d%H%M%S')}.xlsx"
+        # 生成文件名（纯英文，避免编码问题）
+        month_str = month.replace('-', '') if month else 'all'
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        filename = f"overtime_records_{month_str}_{timestamp}.xlsx"
         
         return StreamingResponse(
             output,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
         )
         
     except HTTPException:
