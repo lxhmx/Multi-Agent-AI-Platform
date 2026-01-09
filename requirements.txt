@@ -16,6 +16,7 @@ chromadb>=0.4.0
 
 # 数据库连接
 mysql-connector-python>=8.0.0
+pymysql>=1.1.0
 
 # OpenAI 客户端（用于 DeepSeek API）
 openai>=1.0.0
