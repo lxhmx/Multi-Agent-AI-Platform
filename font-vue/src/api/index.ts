@@ -594,4 +594,102 @@ export const addMessage = (sessionId: string, role: 'user' | 'assistant', conten
   return api.post(`/sessions/${sessionId}/messages`, { role, content })
 }
 
+// ==================== 财务加班管理接口 ====================
+
+export interface OvertimeRecord {
+  id: number
+  employee_name: string
+  job_title: string
+  job_level: string
+  overtime_hours: number
+  overtime_minutes: number
+  overtime_days: number
+  overtime_rate: number
+  overtime_amount: number
+  overtime_detail: string
+  attendance_month: string
+  created_at: string
+  updated_at: string
+}
+
+export interface OvertimeStats {
+  total_employees: number
+  overtime_employees: number
+  total_hours: number
+  total_days: number
+  total_amount: number
+  avg_hours: number
+}
+
+export interface LevelStats {
+  job_level: string
+  count: number
+  total_hours: number
+  total_amount: number
+}
+
+export interface TopEmployee {
+  employee_name: string
+  job_title: string
+  job_level: string
+  overtime_hours: number
+  overtime_amount: number
+}
+
+export interface OvertimeStatsResponse {
+  success: boolean
+  data: {
+    stats: OvertimeStats
+    months: string[]
+    level_stats: LevelStats[]
+    top_employees: TopEmployee[]
+  }
+}
+
+// 上传考勤表
+export const uploadAttendance = (file: File, month?: string) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (month) {
+    formData.append('month', month)
+  }
+  return api.post('/financial/upload-attendance', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}
+
+// 获取加班记录列表
+export const getOvertimeRecords = (params: {
+  page?: number
+  page_size?: number
+  month?: string
+  keyword?: string
+  sort_field?: string
+  sort_order?: string
+}): Promise<{
+  success: boolean
+  data: OvertimeRecord[]
+  pagination: {
+    page: number
+    page_size: number
+    total: number
+    total_pages: number
+  }
+}> => {
+  return api.get('/financial/overtime-records', { params })
+}
+
+// 获取加班统计数据
+export const getOvertimeStats = (month?: string): Promise<OvertimeStatsResponse> => {
+  return api.get('/financial/overtime-stats', { params: { month } })
+}
+
+// 删除加班记录
+export const deleteOvertimeRecords = (params: {
+  ids?: number[]
+  month?: string
+}) => {
+  return api.delete('/financial/overtime-records', { params })
+}
+
 export default api

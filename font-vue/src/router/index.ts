@@ -49,6 +49,25 @@ const routes: RouteRecordRaw[] = [
     name: 'VideoSummary',
     component: () => import('@/views/VideoSummary.vue'),
     meta: { title: '视界拾贝', icon: 'VideoCamera' }
+  },
+  {
+    path: '/financial',
+    name: 'Financial',
+    meta: { title: '财务核算', icon: 'Money' },
+    children: [
+      {
+        path: 'overtime-stats',
+        name: 'OvertimeStats',
+        component: () => import('@/views/financialAccouting/OvertimeStats.vue'),
+        meta: { title: '加班统计', icon: 'TrendCharts' }
+      },
+      {
+        path: 'overtime-list',
+        name: 'OvertimeList',
+        component: () => import('@/views/financialAccouting/OvertimeList.vue'),
+        meta: { title: '加班记录', icon: 'Document' }
+      }
+    ]
   }
 ]
 

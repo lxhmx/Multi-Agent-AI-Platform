@@ -34,14 +34,57 @@ const menuItems = [
   { path: '/video-summary', title: '视界拾贝', icon: 'VideoCamera' },
   { path: '/chat', title: '智能问答', icon: 'ChatDotRound' },
   { path: '/training', title: '知识训练', icon: 'Upload' },
-  { path: '/data-manage', title: '数据管理', icon: 'Document' }
+  { path: '/data-manage', title: '数据管理', icon: 'Document' },
+  { 
+    path: '/financial', 
+    title: '财务核算', 
+    icon: 'Money',
+    children: [
+      { path: '/financial/overtime-stats', title: '加班统计', icon: 'TrendCharts' },
+      { path: '/financial/overtime-list', title: '加班记录', icon: 'Document' }
+    ]
+  }
 ]
+
+const expandedMenus = ref<string[]>([])
+
+const toggleMenu = (path: string) => {
+  const index = expandedMenus.value.indexOf(path)
+  if (index > -1) {
+    expandedMenus.value.splice(index, 1)
+  } else {
+    expandedMenus.value.push(path)
+  }
+}
+
+const isMenuExpanded = (path: string) => {
+  return expandedMenus.value.includes(path)
+}
+
+const isChildActive = (parentPath: string) => {
+  return route.path.startsWith(parentPath)
+}
 
 const activeMenu = computed(() => route.path)
 
 // 添加 tab
 const addTab = (path: string) => {
-  const menuItem = menuItems.find(item => item.path === path)
+  // 查找所有菜单项（包括子菜单）
+  let menuItem = null
+  for (const item of menuItems) {
+    if (item.path === path) {
+      menuItem = item
+      break
+    }
+    if (item.children) {
+      const child = item.children.find(c => c.path === path)
+      if (child) {
+        menuItem = child
+        break
+      }
+    }
+  }
+  
   if (!menuItem) return
   
   const exists = openedTabs.value.find(tab => tab.path === path)
@@ -80,8 +123,12 @@ const handleTabClose = (path: string, event: Event) => {
   }
 }
 
-const handleMenuSelect = (path: string) => {
-  router.push(path)
+const handleMenuSelect = (path: string, hasChildren: boolean = false) => {
+  if (hasChildren) {
+    toggleMenu(path)
+  } else {
+    router.push(path)
+  }
 }
 
 const handleLogout = () => {
@@ -114,18 +161,51 @@ const handleLogout = () => {
         
         <!-- 导航菜单 -->
         <nav class="nav-menu">
-          <div 
-            v-for="item in menuItems" 
-            :key="item.path"
-            class="nav-item"
-            :class="{ active: activeMenu === item.path }"
-            @click="handleMenuSelect(item.path)"
-          >
-            <div class="nav-icon">
-              <el-icon :size="18"><component :is="item.icon" /></el-icon>
+          <template v-for="item in menuItems" :key="item.path">
+            <!-- 有子菜单的项 -->
+            <div v-if="item.children" class="nav-group">
+              <div 
+                class="nav-item"
+                :class="{ active: isChildActive(item.path), expanded: isMenuExpanded(item.path) }"
+                @click="handleMenuSelect(item.path, true)"
+              >
+                <div class="nav-icon">
+                  <el-icon :size="18"><component :is="item.icon" /></el-icon>
+                </div>
+                <span class="nav-title">{{ item.title }}</span>
+                <el-icon class="nav-arrow" :size="14">
+                  <ArrowDown />
+                </el-icon>
+              </div>
+              <transition name="submenu">
+                <div v-show="isMenuExpanded(item.path)" class="submenu">
+                  <div 
+                    v-for="child in item.children" 
+                    :key="child.path"
+                    class="submenu-item"
+                    :class="{ active: activeMenu === child.path }"
+                    @click="handleMenuSelect(child.path)"
+                  >
+                    <el-icon :size="16"><component :is="child.icon" /></el-icon>
+                    <span>{{ child.title }}</span>
+                  </div>
+                </div>
+              </transition>
             </div>
-            <span class="nav-title">{{ item.title }}</span>
-          </div>
+            
+            <!-- 无子菜单的项 -->
+            <div 
+              v-else
+              class="nav-item"
+              :class="{ active: activeMenu === item.path }"
+              @click="handleMenuSelect(item.path)"
+            >
+              <div class="nav-icon">
+                <el-icon :size="18"><component :is="item.icon" /></el-icon>
+              </div>
+              <span class="nav-title">{{ item.title }}</span>
+            </div>
+          </template>
         </nav>
         
         <!-- 底部信息 -->
@@ -323,6 +403,11 @@ const handleLogout = () => {
   gap: 4px;
 }
 
+.nav-group {
+  display: flex;
+  flex-direction: column;
+}
+
 .nav-item {
   display: flex;
   align-items: center;
@@ -354,6 +439,16 @@ const handleLogout = () => {
     font-weight: 500;
     color: #4b5563;
     transition: all 0.25s ease;
+    flex: 1;
+  }
+  
+  .nav-arrow {
+    color: #9ca3af;
+    transition: transform 0.3s ease;
+  }
+  
+  &.expanded .nav-arrow {
+    transform: rotate(180deg);
   }
   
   &:hover {
@@ -389,6 +484,66 @@ const handleLogout = () => {
       font-weight: 600;
     }
   }
+}
+
+.submenu {
+  padding-left: 20px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.submenu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 2px;
+  
+  .el-icon {
+    color: #9ca3af;
+    transition: color 0.25s ease;
+  }
+  
+  &:hover {
+    background: rgba(88, 141, 239, 0.06);
+    color: #1f2937;
+    
+    .el-icon {
+      color: #5b8def;
+    }
+  }
+  
+  &.active {
+    background: rgba(88, 141, 239, 0.1);
+    color: #5b8def;
+    font-weight: 600;
+    
+    .el-icon {
+      color: #5b8def;
+    }
+  }
+}
+
+.submenu-enter-active,
+.submenu-leave-active {
+  transition: all 0.3s ease;
+}
+
+.submenu-enter-from,
+.submenu-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+
+.submenu-enter-to,
+.submenu-leave-from {
+  opacity: 1;
+  max-height: 200px;
 }
 
 .sidebar-footer {
