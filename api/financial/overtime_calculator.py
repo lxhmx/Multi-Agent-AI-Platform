@@ -27,15 +27,17 @@ from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 # ============ 配置参数 ============
 MIN_OVERTIME_MINUTES = 60       # 最少加班分钟数（不满此数不计入）
 DATA_START_ROW = 3              # 数据起始行（跳过表头）
-NAME_COL = 1                    # 姓名列
-JOB_COL = 2                     # 职务列
-LEVEL_COL = 33                  # 职级列
-OVERTIME_RATE_COL = 35          # 加班费用标准列
-DATE_START_COL = 3              # 日期起始列
-DATE_END_COL = 32               # 日期结束列（11月1日-30日）
+HEADER_ROW = 1                  # 表头行
 DATE_INFO_ROW = 2               # 日期信息行（包含星期几）
-MONTH_INFO_ROW = 1              # 月份信息行
-MONTH_INFO_COL = 3              # 月份信息列（如 "2025年11月考勤"）
+
+# 列名匹配关键字（用于动态查找列位置）
+COLUMN_KEYWORDS = {
+    'name': ['姓名', 'name'],
+    'job': ['职务', 'job', '岗位'],
+    'level': ['职级', 'level', '对应职级', '对应职 级'],
+    'overtime_rate': ['加班费用标准', '费用标准', '加班标准'],
+    'month_info': ['考勤', '月份']
+}
 
 # 职级对应的工时规则
 LEVEL_RULES = {
@@ -94,6 +96,79 @@ def extract_month_from_cell(cell_value: str) -> str:
         return f"{year}-{month}"
     
     return None
+
+
+def find_column_by_keywords(sheet, row: int, keywords: list) -> int:
+    """
+    根据关键字列表在指定行查找列索引
+    返回: 列索引（1-based），未找到返回None
+    """
+    for col in range(1, sheet.max_column + 1):
+        cell_value = sheet.cell(row=row, column=col).value
+        if cell_value:
+            cell_str = str(cell_value).strip()
+            for keyword in keywords:
+                if keyword in cell_str:
+                    return col
+    return None
+
+
+def find_date_columns(sheet, date_info_row: int) -> tuple:
+    """
+    查找日期列的起始和结束位置
+    返回: (起始列, 结束列)
+    """
+    start_col = None
+    end_col = None
+    
+    for col in range(1, sheet.max_column + 1):
+        cell_value = sheet.cell(row=date_info_row, column=col).value
+        if cell_value:
+            cell_str = str(cell_value)
+            # 检查是否包含日期信息（数字+星期）
+            if re.search(r'\d+', cell_str) and '星期' in cell_str:
+                if start_col is None:
+                    start_col = col
+                end_col = col
+    
+    return start_col, end_col
+
+
+def get_column_mapping(sheet) -> dict:
+    """
+    动态获取列映射关系
+    返回: 包含各列索引的字典
+    """
+    mapping = {
+        'name_col': find_column_by_keywords(sheet, HEADER_ROW, COLUMN_KEYWORDS['name']),
+        'job_col': find_column_by_keywords(sheet, HEADER_ROW, COLUMN_KEYWORDS['job']),
+        'level_col': find_column_by_keywords(sheet, HEADER_ROW, COLUMN_KEYWORDS['level']),
+        'overtime_rate_col': find_column_by_keywords(sheet, HEADER_ROW, COLUMN_KEYWORDS['overtime_rate']),
+    }
+    
+    # 查找日期列范围
+    date_start, date_end = find_date_columns(sheet, DATE_INFO_ROW)
+    mapping['date_start_col'] = date_start
+    mapping['date_end_col'] = date_end
+    
+    # 查找月份信息列
+    for col in range(1, sheet.max_column + 1):
+        cell_value = sheet.cell(row=HEADER_ROW, column=col).value
+        if cell_value:
+            cell_str = str(cell_value)
+            if any(keyword in cell_str for keyword in COLUMN_KEYWORDS['month_info']):
+                mapping['month_info_col'] = col
+                break
+    
+    # 验证必需列是否找到
+    required_cols = ['name_col', 'level_col', 'date_start_col', 'date_end_col']
+    missing_cols = [col for col in required_cols if not mapping.get(col)]
+    
+    if missing_cols:
+        raise ValueError(f"无法找到必需的列: {missing_cols}")
+    
+    return mapping
+
 
 
 def parse_work_time(record: str, level_rule: dict = None) -> tuple:
@@ -184,17 +259,29 @@ def process_attendance(file_path: str) -> tuple:
     wb = openpyxl.load_workbook(file_path, data_only=True)
     sheet = wb.active
     
+    # 动态获取列映射
+    try:
+        col_map = get_column_mapping(sheet)
+        print(f"列映射: 姓名={col_map['name_col']}, 职务={col_map.get('job_col')}, "
+              f"职级={col_map['level_col']}, 加班标准={col_map.get('overtime_rate_col')}, "
+              f"日期列={col_map['date_start_col']}-{col_map['date_end_col']}")
+    except ValueError as e:
+        print(f"错误: {e}")
+        raise
+    
     # 从Excel中提取考勤月份
-    month_cell_value = sheet.cell(row=MONTH_INFO_ROW, column=MONTH_INFO_COL).value
-    attendance_month = extract_month_from_cell(month_cell_value)
+    attendance_month = None
+    if col_map.get('month_info_col'):
+        month_cell_value = sheet.cell(row=HEADER_ROW, column=col_map['month_info_col']).value
+        attendance_month = extract_month_from_cell(month_cell_value)
     
     results = []
     
     for row_idx in range(DATA_START_ROW, sheet.max_row + 1):
-        name = sheet.cell(row=row_idx, column=NAME_COL).value
-        job = sheet.cell(row=row_idx, column=JOB_COL).value
-        level = sheet.cell(row=row_idx, column=LEVEL_COL).value
-        overtime_rate = sheet.cell(row=row_idx, column=OVERTIME_RATE_COL).value
+        name = sheet.cell(row=row_idx, column=col_map['name_col']).value
+        job = sheet.cell(row=row_idx, column=col_map.get('job_col')).value if col_map.get('job_col') else None
+        level = sheet.cell(row=row_idx, column=col_map['level_col']).value
+        overtime_rate = sheet.cell(row=row_idx, column=col_map.get('overtime_rate_col')).value if col_map.get('overtime_rate_col') else None
         
         if not name:
             continue
@@ -209,7 +296,7 @@ def process_attendance(file_path: str) -> tuple:
         overtime_days = 0
         daily_details = []
         
-        for col_idx in range(DATE_START_COL, DATE_END_COL + 1):
+        for col_idx in range(col_map['date_start_col'], col_map['date_end_col'] + 1):
             day_info = sheet.cell(row=DATE_INFO_ROW, column=col_idx).value
             
             if is_weekend(day_info):
