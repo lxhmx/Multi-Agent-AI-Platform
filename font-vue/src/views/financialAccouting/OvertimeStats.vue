@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { Upload, TrendCharts, User, Clock, Money } from '@element-plus/icons-vue'
+import { Upload } from '@element-plus/icons-vue'
 import { 
   uploadAttendance, 
   getOvertimeStats, 
-  type OvertimeStats,
   type LevelStats,
   type TopEmployee
 } from '@/api'
@@ -24,18 +23,43 @@ const uploading = ref(false)
 const uploadDialogVisible = ref(false)
 const uploadFileName = ref('')
 
+// 获取上个月的月份字符串 (YYYY-MM)
+const getLastMonth = () => {
+  const now = new Date()
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const year = lastMonth.getFullYear()
+  const month = String(lastMonth.getMonth() + 1).padStart(2, '0')
+  return `${year}-${month}`
+}
+
 // 统计数据
-const stats = ref<OvertimeStats>({
-  total_employees: 0, overtime_employees: 0, total_hours: 0,
-  total_days: 0, total_amount: 0, avg_hours: 0
-})
 const availableMonths = ref<string[]>([])
+const monthlyStats = ref<{month: string, hours: number}[]>([])
 const levelStats = ref<LevelStats[]>([])
 const topEmployees = ref<TopEmployee[]>([])
 const selectedMonth = ref('')
 
-const formatMoney = (amount: number) => amount ? `¥${amount.toFixed(2)}` : '¥0.00'
+// 各月加班总时长柱状图
+const monthlyBarOption = computed(() => ({
+  tooltip: { trigger: 'axis', formatter: (params: any) => `${params[0].name}<br/>加班: ${params[0].value}小时` },
+  grid: { left: 50, right: 20, top: 20, bottom: 40 },
+  xAxis: { 
+    type: 'category', 
+    data: monthlyStats.value.map(item => item.month),
+    axisLabel: { rotate: 30 }
+  },
+  yAxis: { type: 'value', name: '小时' },
+  series: [{ 
+    type: 'bar', 
+    data: monthlyStats.value.map(item => item.hours),
+    itemStyle: { 
+      color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#5b8def' }, { offset: 1, color: '#00d4ff' }] },
+      borderRadius: [4, 4, 0, 0]
+    }
+  }]
+}))
 
+// 职级加班时长饼图
 const pieOption = computed(() => ({
   tooltip: { trigger: 'item', formatter: '{b}: {c}小时 ({d}%)' },
   legend: { orient: 'horizontal', bottom: 0, left: 'center' },
@@ -49,6 +73,7 @@ const pieOption = computed(() => ({
   }]
 }))
 
+// 人员排行榜柱状图
 const barOption = computed(() => ({
   tooltip: { trigger: 'axis', formatter: (params: any) => `${params[0].name}<br/>加班: ${params[0].value}小时` },
   grid: { left: 80, right: 20, top: 20, bottom: 30 },
@@ -59,13 +84,32 @@ const barOption = computed(() => ({
   }]
 }))
 
-const loadStats = async () => {
+// 加载各月汇总数据（不受月份筛选影响）
+const loadMonthlyStats = async () => {
+  try {
+    const res = await getOvertimeStats(undefined)
+    if (res.success) {
+      availableMonths.value = res.data.months || []
+      // 计算各月加班总时长
+      const monthsData: {month: string, hours: number}[] = []
+      for (const month of availableMonths.value) {
+        const monthRes = await getOvertimeStats(month)
+        if (monthRes.success && monthRes.data.stats) {
+          monthsData.push({ month, hours: monthRes.data.stats.total_hours || 0 })
+        }
+      }
+      // 按月份升序排列
+      monthlyStats.value = monthsData.sort((a, b) => a.month.localeCompare(b.month))
+    }
+  } catch (error) { console.error('加载月度统计失败:', error) }
+}
+
+// 加载筛选月份的数据（职级时长、人员排行榜）
+const loadFilteredStats = async () => {
   loading.value = true
   try {
     const res = await getOvertimeStats(selectedMonth.value || undefined)
     if (res.success) {
-      stats.value = res.data.stats || {}
-      availableMonths.value = res.data.months || []
       levelStats.value = res.data.level_stats || []
       topEmployees.value = res.data.top_employees || []
     }
@@ -73,7 +117,7 @@ const loadStats = async () => {
   finally { loading.value = false }
 }
 
-const handleMonthChange = () => { loadStats() }
+const handleMonthChange = () => { loadFilteredStats() }
 
 const handleUpload = async (options: any) => {
   const file = options.file
@@ -88,7 +132,8 @@ const handleUpload = async (options: any) => {
     uploadDialogVisible.value = false
     if (res.success) {
       ElMessage.success(`处理完成: ${res.data.total_employees}人, 加班${res.data.overtime_employees}人, 共${res.data.total_hours}小时`)
-      loadStats()
+      loadMonthlyStats()
+      loadFilteredStats()
     } else { ElMessage.error(res.message || '上传失败') }
   } catch (error: any) { 
     uploadDialogVisible.value = false
@@ -97,7 +142,17 @@ const handleUpload = async (options: any) => {
   finally { uploading.value = false }
 }
 
-onMounted(() => { loadStats() })
+onMounted(async () => {
+  await loadMonthlyStats()
+  // 自动选择上个月或最新月份
+  if (availableMonths.value.length > 0) {
+    const lastMonth = getLastMonth()
+    selectedMonth.value = availableMonths.value.includes(lastMonth) 
+      ? lastMonth 
+      : availableMonths.value[0]
+  }
+  await loadFilteredStats()
+})
 </script>
 
 <template>
@@ -140,54 +195,33 @@ onMounted(() => { loadStats() })
       </div>
     </el-dialog>
 
+    <!-- 各月加班总时长图表 -->
+    <div class="stats-card monthly-chart">
+      <div class="stats-header">各月加班总时长</div>
+      <VChart v-if="monthlyStats.length" :option="monthlyBarOption" autoresize style="height: 220px" />
+      <div v-else class="no-data">暂无数据</div>
+    </div>
+
     <!-- 月份筛选 -->
     <div class="filter-bar">
+      <span class="filter-label">按月筛选：</span>
       <el-select v-model="selectedMonth" placeholder="全部月份" clearable style="width: 160px" @change="handleMonthChange">
         <el-option v-for="month in availableMonths" :key="month" :label="month" :value="month" />
       </el-select>
     </div>
 
-    <!-- 统计卡片 -->
+    <!-- 职级时长 + 人员排行榜 -->
     <div class="stats-row">
-      <div class="stats-card overview">
-        <div class="stats-header">
-          <el-icon><TrendCharts /></el-icon>
-          <span>加班概览</span>
-        </div>
-        <div class="stats-items">
-          <div class="stat-item">
-            <div class="stat-icon users"><el-icon><User /></el-icon></div>
-            <div class="stat-value">{{ stats.total_employees || 0 }}</div>
-            <div class="stat-label">总人数</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-icon overtime"><el-icon><Clock /></el-icon></div>
-            <div class="stat-value">{{ stats.overtime_employees || 0 }}</div>
-            <div class="stat-label">加班人数</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-icon hours"><el-icon><Clock /></el-icon></div>
-            <div class="stat-value">{{ stats.total_hours || 0 }}</div>
-            <div class="stat-label">总加班时长(h)</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-icon money"><el-icon><Money /></el-icon></div>
-            <div class="stat-value">{{ formatMoney(stats.total_amount || 0) }}</div>
-            <div class="stat-label">加班总金额</div>
-          </div>
-        </div>
-      </div>
       <div class="stats-card chart">
-        <div class="stats-header">职级分布</div>
-        <VChart v-if="levelStats.length" :option="pieOption" autoresize style="height: 180px" />
+        <div class="stats-header">职级加班时长</div>
+        <VChart v-if="levelStats.length" :option="pieOption" autoresize style="height: 220px" />
         <div v-else class="no-data">暂无数据</div>
       </div>
-    </div>
-    
-    <!-- TOP10图表 -->
-    <div class="activity-card" v-if="topEmployees.length">
-      <div class="card-header">加班时长 TOP 10</div>
-      <VChart :option="barOption" autoresize style="height: 280px" />
+      <div class="stats-card top-chart">
+        <div class="stats-header">加班时长 TOP 10</div>
+        <VChart v-if="topEmployees.length" :option="barOption" autoresize style="height: 220px" />
+        <div v-else class="no-data">暂无数据</div>
+      </div>
     </div>
   </div>
 </template>
@@ -238,6 +272,14 @@ onMounted(() => { loadStats() })
 
 .filter-bar {
   margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  .filter-label {
+    font-size: 14px;
+    color: #666;
+  }
 }
 
 .stats-row {
@@ -253,10 +295,12 @@ onMounted(() => { loadStats() })
   box-shadow: 0 4px 20px rgba(88, 141, 239, 0.08);
   border: 1px solid rgba(88, 141, 239, 0.06);
   transition: all 0.3s ease;
+  margin-bottom: 20px;
   
   &:hover { box-shadow: 0 8px 30px rgba(88, 141, 239, 0.12); }
-  &.overview { flex: 1; }
-  &.chart { width: 320px; }
+  &.monthly-chart { width: 100%; }
+  &.chart { width: 320px; flex-shrink: 0; }
+  &.top-chart { flex: 1; }
   
   .stats-header {
     display: flex;
@@ -265,37 +309,14 @@ onMounted(() => { loadStats() })
     font-size: 15px;
     font-weight: 600;
     color: #4b5563;
-    margin-bottom: 20px;
-    .el-icon { color: #5b8def; }
-  }
-  
-  .stats-items {
-    display: flex;
-    justify-content: space-around;
+    margin-bottom: 16px;
     
-    .stat-item {
-      text-align: center;
-      flex: 1;
-      padding: 8px;
-      
-      .stat-icon {
-        width: 44px;
-        height: 44px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto 10px;
-        font-size: 20px;
-        
-        &.users { background: rgba(91, 141, 239, 0.12); color: #5b8def; }
-        &.overtime { background: rgba(168, 85, 247, 0.12); color: #a855f7; }
-        &.hours { background: rgba(34, 197, 94, 0.12); color: #22c55e; }
-        &.money { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
-      }
-      
-      .stat-value { font-size: 24px; font-weight: 700; color: #333; line-height: 1.2; }
-      .stat-label { font-size: 13px; color: #888; margin-top: 4px; }
+    &::before {
+      content: '';
+      width: 4px;
+      height: 16px;
+      background: linear-gradient(180deg, #00d4ff 0%, #a855f7 100%);
+      border-radius: 2px;
     }
   }
   
@@ -306,33 +327,6 @@ onMounted(() => { loadStats() })
     justify-content: center;
     color: #999;
     font-size: 14px;
-  }
-}
-
-.activity-card {
-  background: #fff;
-  border-radius: 16px;
-  padding: 24px;
-  margin-bottom: 20px;
-  box-shadow: 0 4px 20px rgba(88, 141, 239, 0.08);
-  border: 1px solid rgba(88, 141, 239, 0.06);
-  
-  .card-header {
-    font-size: 15px;
-    font-weight: 600;
-    color: #4b5563;
-    margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    
-    &::before {
-      content: '';
-      width: 4px;
-      height: 16px;
-      background: linear-gradient(180deg, #00d4ff 0%, #a855f7 100%);
-      border-radius: 2px;
-    }
   }
 }
 

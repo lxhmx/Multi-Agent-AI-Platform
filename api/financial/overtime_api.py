@@ -301,19 +301,30 @@ async def get_overtime_stats(
             """
             months = db.execute_query(months_sql)
             
+            # 将具体职级归类到大类：P、M、D、实习
             level_stats_sql = """
                 SELECT 
-                    job_level,
+                    CASE 
+                        WHEN UPPER(job_level) LIKE 'P%%' AND job_level NOT LIKE '%%实习%%' THEN 'P'
+                        WHEN UPPER(job_level) LIKE 'M%%' THEN 'M'
+                        WHEN UPPER(job_level) LIKE 'D%%' THEN 'D'
+                        WHEN job_level LIKE '%%实习%%' THEN '实习'
+                        ELSE '其他'
+                    END as level_category,
                     COUNT(*) as count,
                     SUM(overtime_hours) as total_hours,
                     SUM(overtime_amount) as total_amount
                 FROM employee_overtime
                 {}
-                GROUP BY job_level
-                ORDER BY total_hours DESC
+                GROUP BY level_category
+                ORDER BY FIELD(level_category, 'P', 'M', 'D', '实习', '其他')
             """.format("WHERE attendance_month = %s" if month else "")
             
-            level_stats = db.execute_query(level_stats_sql, (month,) if month else None)
+            level_stats_raw = db.execute_query(level_stats_sql, (month,) if month else None)
+            # 转换字段名以兼容前端
+            level_stats = [{'job_level': r['level_category'], 'count': r['count'], 
+                           'total_hours': r['total_hours'], 'total_amount': r['total_amount']} 
+                          for r in level_stats_raw] if level_stats_raw else []
             
             top_sql = """
                 SELECT employee_name, job_title, job_level, overtime_hours, overtime_amount

@@ -414,14 +414,30 @@ def print_summary(results: list):
     level_stats = {}
     for r in results:
         level = r['职级'] or '未知'
-        if level not in level_stats:
-            level_stats[level] = {'count': 0, 'hours': 0}
-        level_stats[level]['count'] += 1
-        level_stats[level]['hours'] += r['加班时长(小时)']
+        # 将具体职级归类到大类：P、M、D、实习
+        level_upper = str(level).upper()
+        if level_upper.startswith('P') and '实习' not in level:
+            level_category = 'P'
+        elif level_upper.startswith('M'):
+            level_category = 'M'
+        elif level_upper.startswith('D'):
+            level_category = 'D'
+        elif '实习' in level:
+            level_category = '实习'
+        else:
+            level_category = '其他'
+        
+        if level_category not in level_stats:
+            level_stats[level_category] = {'count': 0, 'hours': 0}
+        level_stats[level_category]['count'] += 1
+        level_stats[level_category]['hours'] += r['加班时长(小时)']
     
-    for level in sorted(level_stats.keys()):
-        stats = level_stats[level]
-        print(f"  {level:<12} {stats['count']:>3}人  共{stats['hours']:>4}小时")
+    # 按固定顺序输出：P、M、D、实习、其他
+    level_order = ['P', 'M', 'D', '实习', '其他']
+    for level in level_order:
+        if level in level_stats:
+            stats = level_stats[level]
+            print(f"  {level:<12} {stats['count']:>3}人  共{stats['hours']:>4}小时")
     
     print("\n加班时长 TOP 10:")
     print("-" * 60)
