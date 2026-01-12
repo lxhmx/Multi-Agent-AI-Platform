@@ -692,4 +692,135 @@ export const deleteOvertimeRecords = (params: {
   return api.delete('/financial/overtime-records', { params })
 }
 
+// ==================== 考勤扣款管理接口 ====================
+
+export interface DeductionRecord {
+  id: number
+  employee_name: string
+  job_title: string
+  job_level: string
+  level_type: string
+  total_late_count: number
+  late_within_10_count: number
+  late_over_10_count: number
+  late_over_60_count: number
+  morning_missing_count: number
+  evening_missing_count: number
+  early_leave_count: number
+  total_deduction: number
+  attendance_month: string
+  created_at: string
+  updated_at: string
+}
+
+export interface DeductionStats {
+  total_employees: number
+  deduction_employees: number
+  total_late_count: number
+  late_within_10_count: number
+  late_over_10_count: number
+  late_over_60_count: number
+  morning_missing_count: number
+  evening_missing_count: number
+  early_leave_count: number
+  total_deduction: number
+}
+
+export interface LevelDeductionStats {
+  level_type: string
+  count: number
+  total_late: number
+  total_deduction: number
+}
+
+export interface TopDeductionEmployee {
+  employee_name: string
+  job_title: string
+  level_type: string
+  total_late_count: number
+  total_deduction: number
+}
+
+export interface DeductionStatsResponse {
+  success: boolean
+  data: {
+    stats: DeductionStats
+    months: string[]
+    level_stats: LevelDeductionStats[]
+    top_employees: TopDeductionEmployee[]
+  }
+}
+
+// 上传考勤表计算扣款
+export const uploadAttendanceDeduction = (file: File, month?: string) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (month) {
+    formData.append('month', month)
+  }
+  return api.post('/financial/attendance/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}
+
+// 获取考勤扣款记录列表
+export const getDeductionRecords = (params: {
+  page?: number
+  page_size?: number
+  month?: string
+  keyword?: string
+  sort_field?: string
+  sort_order?: string
+}): Promise<{
+  success: boolean
+  data: DeductionRecord[]
+  pagination: {
+    page: number
+    page_size: number
+    total: number
+    total_pages: number
+  }
+}> => {
+  return api.get('/financial/attendance/records', { params })
+}
+
+// 获取考勤扣款统计数据
+export const getDeductionStats = (month?: string): Promise<DeductionStatsResponse> => {
+  return api.get('/financial/attendance/stats', { params: { month } })
+}
+
+// 删除考勤扣款记录
+export const deleteDeductionRecords = (params: {
+  ids?: number[]
+  month?: string
+}) => {
+  return api.delete('/financial/attendance/records', { params })
+}
+
+// 导出考勤扣款记录
+export const exportDeductionRecords = async (month?: string, keyword?: string) => {
+  const params = new URLSearchParams()
+  if (month) params.append('month', month)
+  if (keyword) params.append('keyword', keyword)
+  
+  const response = await fetch(`/api/financial/attendance/export?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+    }
+  })
+  
+  if (!response.ok) throw new Error('导出失败')
+  
+  const blob = await response.blob()
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `attendance_deduction_${month || 'all'}_${Date.now()}.xlsx`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  window.URL.revokeObjectURL(url)
+}
+
 export default api

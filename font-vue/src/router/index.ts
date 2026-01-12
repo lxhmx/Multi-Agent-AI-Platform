@@ -66,6 +66,12 @@ const routes: RouteRecordRaw[] = [
         name: 'OvertimeList',
         component: () => import('@/views/financialAccouting/OvertimeList.vue'),
         meta: { title: '加班记录', icon: 'Document' }
+      },
+      {
+        path: 'attendance-list',
+        name: 'AttendanceList',
+        component: () => import('@/views/financialAccouting/attendanceList/index.vue'),
+        meta: { title: '考勤扣款', icon: 'Warning' }
       }
     ]
   }
