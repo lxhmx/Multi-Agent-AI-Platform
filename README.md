@@ -1,4 +1,4 @@
-# 视界拾贝 - Multi-Agent AI Platform
+# Multi-Agent AI Platform - 视界拾贝
 
 <p align="center">
   <b>🌟 基于 FastAPI + Vue3 + LangChain 的多智能体 AI 平台</b>
