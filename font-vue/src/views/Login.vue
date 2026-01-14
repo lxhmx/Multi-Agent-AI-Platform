@@ -130,9 +130,6 @@ const doLogin = async () => {
             <button class="social-btn">M</button>
           </div>
 
-          <div class="switch fade-drop stagger-9">
-            还没有账户? <el-link type="primary" :underline="false" @click="router.push('/register')">立即注册</el-link>
-          </div>
         </el-form>
       </div>
       
