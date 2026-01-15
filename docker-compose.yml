@@ -24,7 +24,7 @@ services:
     container_name: vanna-frontend
     restart: unless-stopped
     ports:
-      - "8080:80"  # 对外暴露 8080 端口
+      - "80:80"  # 对外暴露 80 端口
     depends_on:
       - backend
     networks:
