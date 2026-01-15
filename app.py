@@ -20,6 +20,10 @@ import uvicorn
 PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# 日志配置
+from common.logger import setup_logger
+logger = setup_logger("app")
+
 # 导入各个模块的路由器
 from api.auth_api import router as auth_router
 from api.ask_api import router as ask_router
@@ -40,15 +44,15 @@ async def lifespan(app: FastAPI):
     from api.data_manage_api import init_table
     init_table()
     
-    print("=" * 60)
-    print("Vanna Text2SQL API 服务 (FastAPI)")
-    print("流程图功能: XML 生成 + 图片导出模式")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("Vanna Text2SQL API 服务 (FastAPI)")
+    logger.info("流程图功能: XML 生成 + 图片导出模式")
+    logger.info("=" * 60)
     
     yield
     
     # 关闭时清理（当前无需清理）
-    print("服务已关闭")
+    logger.info("服务已关闭")
 
 
 # 创建 FastAPI 应用

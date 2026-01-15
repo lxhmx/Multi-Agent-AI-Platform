@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache
+.hypothesis
+*.egg-info
+.eggs
+
+# Virtual environments
+venv
+.venv
+env
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Node (前端单独构建)
+font-vue/node_modules
+font-vue/dist
+
+# 临时文件
+temp/*
+!temp/.gitkeep
+test_downloads
+*.log
+
+# 敏感配置（使用 volume 挂载）
+config.py
+
+# 数据目录
+dbData/*
+!dbData/.gitkeep

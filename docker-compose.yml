@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vanna-backend
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./config.py:/app/config.py:ro
+      - ./temp:/app/temp
+      - ./dbData:/app/dbData
+      - ./logs:/app/logs
+      - video_data:/opt/app/video
+    networks:
+      - vanna-network
+    # 后端不直接暴露端口，通过 nginx 代理
+
+  frontend:
+    build:
+      context: ./font-vue
+      dockerfile: Dockerfile
+    container_name: vanna-frontend
+    restart: unless-stopped
+    ports:
+      - "3333:80"  # 对外暴露 3333 端口
+    depends_on:
+      - backend
+    networks:
+      - vanna-network
+
+volumes:
+  video_data:
+
+networks:
+  vanna-network:
+    driver: bridge
