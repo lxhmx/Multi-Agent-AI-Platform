@@ -57,6 +57,7 @@ chroma.sqlite3
 # Local Config (建议忽略实际配置文件，只保留模板)
 config.py
 config_local.py
+!agents/server_monitor_agent/config.py
 
 # System
 .DS_Store

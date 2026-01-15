@@ -12,6 +12,7 @@ services:
       - ./temp:/app/temp
       - ./dbData:/app/dbData
       - ./logs:/app/logs
+      - ./ssh_keys:/app/ssh_keys:ro
       - video_data:/opt/app/video
     networks:
       - vanna-network
