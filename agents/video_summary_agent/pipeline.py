@@ -106,10 +106,28 @@ class VideoPipeline:
                     title=result.title,
                 )
                 result.local_path = local_path
-                logger.info(f"[Pipeline] 视频已下载: {local_path}")
+                
+                # 验证视频文件是否存在
+                import os
+                if not os.path.exists(local_path):
+                    result.error = f"视频下载失败：文件未保存到 {local_path}"
+                    return result
+                
+                file_size = os.path.getsize(local_path)
+                if file_size == 0:
+                    result.error = "视频下载失败：文件大小为0"
+                    return result
+                
+                logger.info(f"[Pipeline] 视频已下载: {local_path}, 大小: {file_size / 1024 / 1024:.2f}MB")
             
             # Step 4: 分析视频
             if "analyze" in steps:
+                # 验证视频文件存在才能进入分析步骤
+                import os
+                if not result.local_path or not os.path.exists(result.local_path):
+                    result.error = "无法分析视频：视频文件不存在"
+                    return result
+                
                 summary = await self.analyzer.analyze(result.local_path)
                 result.summary = summary
                 logger.info(f"[Pipeline] 分析完成")
@@ -192,10 +210,28 @@ class VideoPipeline:
                     title=result.title,
                 )
                 result.local_path = local_path
-                yield f"✅ 视频下载完成\n\n📁 保存路径: `{local_path}`\n\n"
+                
+                # 验证视频文件是否存在
+                import os
+                if not os.path.exists(local_path):
+                    yield f"❌ 视频下载失败：文件未保存到 `{local_path}`\n"
+                    return
+                
+                file_size = os.path.getsize(local_path)
+                if file_size == 0:
+                    yield f"❌ 视频下载失败：文件大小为0\n"
+                    return
+                
+                yield f"✅ 视频下载完成\n\n📁 保存路径: `{local_path}`\n📊 文件大小: {file_size / 1024 / 1024:.2f}MB\n\n"
             
             # Step 4: 分析视频
             if "analyze" in steps:
+                # 再次验证视频文件存在才能进入分析步骤
+                import os
+                if not result.local_path or not os.path.exists(result.local_path):
+                    yield "❌ 无法分析视频：视频文件不存在\n"
+                    return
+                
                 yield "🤖 正在分析视频内容，请稍候...\n\n"
                 
                 summary = await self.analyzer.analyze(result.local_path)

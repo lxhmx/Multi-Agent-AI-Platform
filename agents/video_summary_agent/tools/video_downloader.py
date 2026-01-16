@@ -143,7 +143,16 @@ class VideoDownloader:
                                 # 如果没有content-length，每512KB回调一次
                                 await progress_callback(downloaded, 0, 0)
             
-            logger.info(f"[VideoDownloader] 下载完成: {filepath}")
+            # 验证文件是否下载成功
+            if not os.path.exists(filepath):
+                raise Exception(f"下载失败：文件未保存到 {filepath}")
+            
+            file_size = os.path.getsize(filepath)
+            if file_size == 0:
+                os.remove(filepath)
+                raise Exception("下载失败：文件大小为0")
+            
+            logger.info(f"[VideoDownloader] 下载完成: {filepath}, 大小: {file_size / 1024 / 1024:.2f}MB")
             return filepath
             
         except asyncio.TimeoutError:

@@ -46,11 +46,21 @@
 - 预定义技能脚本模式（Skills）
 - 通用自然语言指令模式
 
-### 4. 视频总结智能体 (Video Summary)
+### 4. 视频总结智能体 (Video Summary) - 视界拾贝
 - 自动识别抖音、B站、小红书、视频号链接
 - Playwright 获取视频真实地址并下载
 - 调用多模态模型分析视频内容
 - 生成结构化的内容摘要
+
+#### 📸 功能展示
+
+**步骤一：输入视频地址**
+
+![视界拾贝-输入地址](docs/images/video-summary-step1.png)
+
+**步骤二：AI 分析并生成内容总结**
+
+![视界拾贝-内容总结](docs/images/video-summary-step2.png)
 
 ### 5. 服务器监控智能体 (Server Monitor)
 - SSH 连接远程服务器
