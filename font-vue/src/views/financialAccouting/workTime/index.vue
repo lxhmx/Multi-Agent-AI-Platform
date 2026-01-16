@@ -79,14 +79,27 @@ const companyPieOption = computed(() => ({
   tooltip: { trigger: 'item', formatter: '{b}: {c}小时 ({d}%)' },
   legend: { orient: 'horizontal', bottom: 0, left: 'center' },
   series: [{
-    type: 'pie', radius: ['40%', '60%'], center: ['50%', '40%'],
-    avoidLabelOverlap: false,
-    label: { show: true, formatter: '{b}\n{d}%', fontSize: 11 },
-    data: companyStats.value.map((item, index) => ({
-      value: Math.round(item.value / 60 * 10) / 10,
-      name: item.name,
-      itemStyle: { color: colors[index % colors.length] }
-    }))
+    type: 'pie', radius: ['20%', '40%'], center: ['50%', '50%'],
+    avoidLabelOverlap: true,
+    label: { 
+      show: true, 
+      formatter: '{b}\n{d}%', 
+      fontSize: 10,
+      alignTo: 'labelLine',
+      distanceToLabelLine: 5
+    },
+    labelLine: { 
+      show: true,
+      length: 20,
+      length2: 15
+    },
+    data: companyStats.value
+      .filter(item => item.name !== '多公司')
+      .map((item, index) => ({
+        value: Math.round(item.value / 60 * 10) / 10,
+        name: item.name,
+        itemStyle: { color: colors[index % colors.length] }
+      }))
   }]
 }))
 
@@ -293,7 +306,7 @@ onMounted(() => {
       <!-- 公司主体工作时长分布 -->
       <div class="stats-card chart-medium">
         <div class="stats-header">公司主体工作时长分布</div>
-        <VChart v-if="companyStats.length" :option="companyPieOption" autoresize style="height: 280px" />
+        <VChart v-if="companyStats.length" :option="companyPieOption" autoresize style="height: 320px" />
         <div v-else class="no-data">暂无数据</div>
       </div>
 

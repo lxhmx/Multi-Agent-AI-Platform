@@ -38,6 +38,7 @@ services:
       - ./ssh_keys:/app/ssh_keys:ro
       - video_data:/opt/app/video
       - /opt/video/cookies:/opt/video/cookies:ro
+      - /opt/video:/opt/video
     depends_on:
       - neo4j
     networks:
@@ -52,6 +53,8 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"  # 对外暴露 80 端口
+    volumes:
+      - /opt/video:/opt/video:ro
     depends_on:
       - backend
     networks:
