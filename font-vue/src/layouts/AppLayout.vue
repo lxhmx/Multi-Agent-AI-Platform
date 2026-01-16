@@ -42,7 +42,8 @@ const menuItems = [
     children: [
       { path: '/financial/overtime-stats', title: '加班统计', icon: 'TrendCharts' },
       { path: '/financial/overtime-list', title: '加班记录', icon: 'Document' },
-      { path: '/financial/attendance-list', title: '考勤扣款', icon: 'Warning' }
+      { path: '/financial/attendance-list', title: '考勤扣款', icon: 'Warning' },
+      { path: '/financial/work-time', title: '工作时长统计', icon: 'Timer' }
     ]
   }
 ]

@@ -72,6 +72,12 @@ const routes: RouteRecordRaw[] = [
         name: 'AttendanceList',
         component: () => import('@/views/financialAccouting/attendanceList/index.vue'),
         meta: { title: '考勤扣款', icon: 'Warning' }
+      },
+      {
+        path: 'work-time',
+        name: 'WorkTimeStats',
+        component: () => import('@/views/financialAccouting/workTime/index.vue'),
+        meta: { title: '工作时长统计', icon: 'Timer' }
       }
     ]
   }

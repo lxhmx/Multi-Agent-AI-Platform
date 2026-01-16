@@ -35,6 +35,7 @@ from api.agent_router import router as agent_router
 from api.video_summary_api import router as video_summary_router
 from api.financial.overtime_api import router as financial_router
 from api.financial.attendance_api import router as attendance_router
+from api.financial.work_time_api import router as work_time_router
 
 
 @asynccontextmanager
@@ -83,6 +84,7 @@ app.include_router(agent_router)         # 智能体统一入口（新）
 app.include_router(video_summary_router) # 视频总结接口
 app.include_router(financial_router)     # 财务加班管理接口
 app.include_router(attendance_router)    # 考勤扣款管理接口
+app.include_router(work_time_router)     # 工作时长统计接口
 
 
 # ==================== 健康检查 ====================

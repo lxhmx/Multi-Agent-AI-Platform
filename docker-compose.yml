@@ -37,6 +37,7 @@ services:
       - ./logs:/app/logs
       - ./ssh_keys:/app/ssh_keys:ro
       - video_data:/opt/app/video
+      - /opt/video/cookies:/opt/video/cookies:ro
     depends_on:
       - neo4j
     networks:
