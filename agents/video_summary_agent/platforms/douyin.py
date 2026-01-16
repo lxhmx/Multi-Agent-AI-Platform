@@ -123,9 +123,11 @@ class DouyinPlatform(BasePlatform):
         page_url = self.normalize_url(page_url)
         
         logger.info(f"[Douyin] 目标视频ID: {video_id}, 访问URL: {page_url}")
+        print(f"[Douyin] 目标视频ID: {video_id}, 访问URL: {page_url}")
         
         async with async_playwright() as p:
             logger.info("[Douyin] 启动浏览器...")
+            print("[Douyin] 启动浏览器...")
             browser = await p.chromium.launch(headless=True)
             
             context = await browser.new_context(
@@ -225,11 +227,14 @@ class DouyinPlatform(BasePlatform):
                 
                 if video_url:
                     logger.info(f"[Douyin] 获取到视频URL: {video_url[:100]}...")
+                    print(f"[Douyin] 获取到视频URL: {video_url[:100]}...")
                 else:
                     logger.warning("[Douyin] 未找到视频地址")
+                    print("[Douyin] 未找到视频地址")
                     
             except Exception as e:
                 logger.error(f"[Douyin] 页面加载失败: {e}")
+                print(f"[Douyin] 页面加载失败: {e}")
                 raise
             
             await browser.close()
