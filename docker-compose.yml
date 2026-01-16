@@ -1,4 +1,27 @@
 services:
+  neo4j:
+    image: neo4j:5.26-community
+    container_name: vanna-neo4j
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - NEO4J_AUTH=neo4j/12345678
+      - NEO4J_server_memory_heap_initial__size=256m
+      - NEO4J_server_memory_heap_max__size=512m
+      - NEO4J_server_memory_pagecache_size=128m
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    ports:
+      - "7474:7474"  # Web 界面
+      - "7687:7687"  # Bolt 协议
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+    networks:
+      - vanna-network
+
   backend:
     build:
       context: .
@@ -14,6 +37,8 @@ services:
       - ./logs:/app/logs
       - ./ssh_keys:/app/ssh_keys:ro
       - video_data:/opt/app/video
+    depends_on:
+      - neo4j
     networks:
       - vanna-network
     # 后端不直接暴露端口，通过 nginx 代理
@@ -33,6 +58,8 @@ services:
 
 volumes:
   video_data:
+  neo4j_data:
+  neo4j_logs:
 
 networks:
   vanna-network:
